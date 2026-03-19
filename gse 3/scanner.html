@@ -1,0 +1,517 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Radar Scanner — StockSense AI</title>
+  <link rel="stylesheet" href="styles/main.css"/>
+  <style>
+    .radar-page { display:flex; gap:24px; align-items:flex-start; flex-wrap:wrap; }
+    .radar-center { flex:1; display:flex; flex-direction:column; align-items:center; gap:24px; min-width:320px; }
+    .radar-controls { width:260px; display:flex; flex-direction:column; gap:16px; flex-shrink:0; }
+
+    #radarCanvas { display:block; border-radius:50%; background:#050810;
+      box-shadow:0 0 60px rgba(0,200,150,0.15), 0 0 120px rgba(0,200,150,0.05); cursor:crosshair; }
+
+    .radar-legend { display:flex; gap:16px; flex-wrap:wrap; justify-content:center; }
+    .legend-item { display:flex; align-items:center; gap:6px; font-size:12px; color:var(--text-secondary); }
+    .legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+
+    .scan-btn { width:100%; }
+
+    .control-group { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:16px; }
+    .control-label { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px; }
+    .control-chips { display:flex; flex-wrap:wrap; gap:6px; }
+    .control-chip { padding:5px 12px; font-size:12px; border-radius:var(--radius-pill); background:var(--bg-card); border:1px solid var(--border); color:var(--text-secondary); cursor:pointer; transition:all 0.2s; }
+    .control-chip.active { border-color:var(--emerald); color:var(--emerald); background:var(--emerald-glow); }
+    .control-chip:hover { border-color:var(--border-hover); }
+
+    .rsi-range { display:flex; flex-direction:column; gap:8px; }
+    .rsi-range input[type=range] { width:100%; accent-color:var(--emerald); }
+    .rsi-range .range-labels { display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); font-family:var(--font-data); }
+
+    /* Tooltip */
+    #radarTooltip {
+      position:fixed; pointer-events:none; z-index:200;
+      background:var(--bg-surface); border:1px solid var(--border-hover);
+      border-radius:var(--radius-md); padding:12px 16px; min-width:180px;
+      box-shadow:0 8px 40px rgba(0,0,0,0.6); display:none;
+      animation:fadeIn 0.15s ease;
+    }
+    .tt-ticker { font-family:var(--font-data); font-size:16px; font-weight:600; margin-bottom:4px; }
+    .tt-name   { font-size:12px; color:var(--text-secondary); margin-bottom:8px; }
+    .tt-row    { display:flex; justify-content:space-between; font-size:12px; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+    .tt-row:last-child { border:none; }
+    .tt-lbl { color:var(--text-muted); }
+    .tt-val { font-family:var(--font-data); }
+
+    /* Slide-in report panel */
+    #reportPanel {
+      position:fixed; top:0; right:0; bottom:0; width:380px; max-width:100%;
+      background:var(--bg-surface); border-left:1px solid var(--border);
+      padding:28px; overflow-y:auto; z-index:300;
+      transform:translateX(100%); transition:transform 0.35s ease;
+    }
+    #reportPanel.open { transform:translateX(0); }
+    .rp-close { position:absolute; top:20px; right:20px; cursor:pointer; color:var(--text-muted); font-size:22px; }
+    .rp-ticker { font-family:var(--font-data); font-size:28px; font-weight:700; margin-bottom:4px; }
+    .rp-name   { font-size:14px; color:var(--text-secondary); margin-bottom:20px; }
+    .rp-section { margin-bottom:20px; }
+    .rp-section-title { font-size:11px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.08em; margin-bottom:10px; }
+    .rp-row    { display:flex; justify-content:space-between; padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:14px; }
+    .rp-row:last-child { border:none; }
+    .rp-lbl { color:var(--text-secondary); }
+    .rp-val { font-family:var(--font-data); }
+
+    /* Results table */
+    .results-section { width:100%; max-width:700px; }
+    #scanResultsTable { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden; }
+
+    @media(max-width:768px) {
+      .radar-controls { width:100%; order: 2; }
+      .radar-center { width: 100%; order: 1; }
+      .radar-page { flex-direction: column; gap: 16px; }
+      #radarCanvas { width: 100% !important; height: auto !important; max-width: 340px; }
+      #reportPanel { width:100%; }
+      .results-section { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarHolder"></div>
+
+  <main class="main-content">
+    <div class="topbar">
+      <div class="topbar-left">
+        <h2>Radar Scanner</h2>
+        <div class="topbar-sub">Visual market scan — all 31 GSE stocks</div>
+      </div>
+      <div class="topbar-right">
+        <div class="usage-pill" data-usage-pill>3 of 5 free</div>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <div class="radar-page">
+
+        <!-- Center: Radar + legend + results -->
+        <div class="radar-center">
+          <canvas id="radarCanvas" width="500" height="500"></canvas>
+
+          <div class="radar-legend">
+            <div class="legend-item"><div class="legend-dot" style="background:var(--emerald)"></div>BUY Opportunity</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>SELL / Overbought</div>
+            <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>Monitor / HOLD</div>
+            <div class="legend-item"><div class="legend-dot" style="background:rgba(255,255,255,0.3)"></div>Insufficient Data</div>
+            <div class="legend-item" style="margin-top:2px;font-size:11px;color:var(--text-muted)">Dot size = relative market cap</div>
+          </div>
+
+          <!-- Results table -->
+          <div class="results-section" id="resultsSection" style="display:none">
+            <div class="widget-header">
+              <div class="widget-title">Scan Results</div>
+              <div class="label" id="scanCountLabel"></div>
+            </div>
+            <div id="scanResultsTable"></div>
+          </div>
+        </div>
+
+        <!-- Right: Controls -->
+        <div class="radar-controls">
+          <button class="btn btn-emerald scan-btn" id="scanBtn" onclick="runScan()">
+            Run Full Scan
+          </button>
+
+          <!-- Signal filter -->
+          <div class="control-group">
+            <div class="control-label">Signal Type</div>
+            <div class="control-chips" id="signalChips">
+              <div class="control-chip active" data-signal="ALL" onclick="setChip('signal',this,'ALL')">All</div>
+              <div class="control-chip" data-signal="BUY" onclick="setChip('signal',this,'BUY')">BUY</div>
+              <div class="control-chip" data-signal="SELL" onclick="setChip('signal',this,'SELL')">SELL</div>
+              <div class="control-chip" data-signal="HOLD" onclick="setChip('signal',this,'HOLD')">HOLD</div>
+            </div>
+          </div>
+
+          <!-- Sector filter -->
+          <div class="control-group">
+            <div class="control-label">Sector</div>
+            <div class="control-chips" id="sectorChips">
+              <div class="control-chip active" data-sector="ALL" onclick="setChip('sector',this,'ALL')">All</div>
+              <div class="control-chip" onclick="setChip('sector',this,'Banking')">Banking</div>
+              <div class="control-chip" onclick="setChip('sector',this,'Insurance')">Insurance</div>
+              <div class="control-chip" onclick="setChip('sector',this,'Telecom')">Telecom</div>
+              <div class="control-chip" onclick="setChip('sector',this,'Energy')">Energy</div>
+              <div class="control-chip" onclick="setChip('sector',this,'Agriculture')">Agriculture</div>
+              <div class="control-chip" onclick="setChip('sector',this,'Mining')">Mining</div>
+            </div>
+          </div>
+
+          <!-- RSI range -->
+          <div class="control-group">
+            <div class="control-label">RSI Range: <span id="rsiRangeLabel">0 – 100</span></div>
+            <div class="rsi-range">
+              <input type="range" id="rsiMin" min="0" max="100" value="0" oninput="updateRsiLabel()"/>
+              <input type="range" id="rsiMax" min="0" max="100" value="100" oninput="updateRsiLabel()"/>
+              <div class="range-labels"><span>Min RSI</span><span>Max RSI</span></div>
+            </div>
+          </div>
+
+          <!-- Market cap -->
+          <div class="control-group">
+            <div class="control-label">Market Cap</div>
+            <div class="control-chips" id="capChips">
+              <div class="control-chip active" onclick="setChip('cap',this,'ALL')">All</div>
+              <div class="control-chip" onclick="setChip('cap',this,'large')">Large</div>
+              <div class="control-chip" onclick="setChip('cap',this,'mid')">Mid</div>
+              <div class="control-chip" onclick="setChip('cap',this,'small')">Small</div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- Tooltip -->
+  <div id="radarTooltip"></div>
+
+  <!-- Report slide-in -->
+  <div id="reportPanel">
+    <div class="rp-close" onclick="closeReport()">×</div>
+    <div id="reportContent"></div>
+  </div>
+
+  <div id="mobileNavHolder"></div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+if (!Auth.requireAuth()) throw new Error('Not authenticated');
+const profile = Profile.get() || { riskProfile:'moderate', capitalAmount:5000 };
+initApp('scanner.html');
+
+/* Scale for mobile */
+const SIZE = window.innerWidth < 600 ? 300 : 500;
+const canvas = document.getElementById('radarCanvas');
+canvas.width = SIZE; canvas.height = SIZE;
+const ctx = canvas.getContext('2d');
+const CX = SIZE/2, CY = SIZE/2, R = SIZE/2 - 10;
+
+/* Filters */
+let filters = { signal:'ALL', sector:'ALL', cap:'ALL', rsiMin:0, rsiMax:100 };
+
+function setChip(group, el, val) {
+  const parentId = { signal:'signalChips', sector:'sectorChips', cap:'capChips' }[group];
+  document.querySelectorAll(`#${parentId} .control-chip`).forEach(c => c.classList.remove('active'));
+  el.classList.add('active');
+  filters[group] = val;
+}
+
+function updateRsiLabel() {
+  filters.rsiMin = +document.getElementById('rsiMin').value;
+  filters.rsiMax = +document.getElementById('rsiMax').value;
+  document.getElementById('rsiRangeLabel').textContent = `${filters.rsiMin} – ${filters.rsiMax}`;
+}
+
+/* Map each stock to radar polar coords */
+function stockToXY(s) {
+  // radius: based on RSI (0=center/safe, 1=outer/risky)
+  // angle: based on fundamental score
+  const rsiNorm = Math.max(0, Math.min(1, (s.rsi - 20) / 80)); // 20→0 = center, 100 = edge
+  const radius  = rsiNorm * R * 0.88;
+  const angle   = (s.fundamentalScore / 100) * Math.PI * 2;
+  const x = CX + Math.cos(angle) * radius;
+  const y = CY + Math.sin(angle) * radius;
+  return { x, y, radius };
+}
+
+function dotSize(s) {
+  return s.marketCap === 'large' ? 7 : s.marketCap === 'mid' ? 5 : 3.5;
+}
+
+function dotColor(s) {
+  if (s.signal === 'BUY' && s.rsi < filters.rsiMax) return '#00C896';
+  if (s.signal === 'SELL') return '#FF4560';
+  if (s.signal === 'HOLD') return '#F5A623';
+  return 'rgba(255,255,255,0.3)';
+}
+
+/* Filter stocks */
+function filteredStocks() {
+  return GSE.stocks.filter(s => {
+    if (filters.signal !== 'ALL' && s.signal !== filters.signal) return false;
+    if (filters.sector !== 'ALL' && !s.sector.toLowerCase().includes(filters.sector.toLowerCase())) return false;
+    if (filters.cap !== 'ALL' && s.marketCap !== filters.cap) return false;
+    if (s.rsi < filters.rsiMin || s.rsi > filters.rsiMax) return false;
+    return true;
+  });
+}
+
+/* Draw radar background */
+function drawRadarBg() {
+  ctx.clearRect(0, 0, SIZE, SIZE);
+  // Concentric rings
+  for (let i = 1; i <= 4; i++) {
+    ctx.beginPath();
+    ctx.arc(CX, CY, (R / 4) * i, 0, Math.PI * 2);
+    ctx.strokeStyle = 'rgba(0,200,150,0.12)';
+    ctx.lineWidth = 1;
+    ctx.stroke();
+  }
+  // Crosshairs
+  ctx.strokeStyle = 'rgba(0,200,150,0.25)';
+  ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(CX, CY-R); ctx.lineTo(CX, CY+R); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(CX-R, CY); ctx.lineTo(CX+R, CY); ctx.stroke();
+  // Diagonal lines
+  ctx.strokeStyle = 'rgba(0,200,150,0.08)';
+  [-45, 45].forEach(deg => {
+    const rad = deg * Math.PI / 180;
+    ctx.beginPath();
+    ctx.moveTo(CX - Math.cos(rad)*R, CY - Math.sin(rad)*R);
+    ctx.lineTo(CX + Math.cos(rad)*R, CY + Math.sin(rad)*R);
+    ctx.stroke();
+  });
+}
+
+/* Draw sweep */
+let sweepAngle = 0;
+let isScanning = false;
+let glowBlips  = {}; // ticker -> glow intensity 0-1
+
+function drawSweep(angle) {
+  // Trail
+  const trailLength = Math.PI * 0.6;
+  const grad = ctx.createConicalGradient
+    ? ctx.createConicalGradient(CX, CY, angle - trailLength, angle)
+    : null;
+
+  // Fallback: draw arc sector
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(CX, CY);
+  ctx.arc(CX, CY, R, angle - trailLength, angle);
+  ctx.closePath();
+  const trailGrad = ctx.createRadialGradient(CX, CY, 0, CX, CY, R);
+  trailGrad.addColorStop(0, 'rgba(0,200,150,0.0)');
+  trailGrad.addColorStop(1, 'rgba(0,200,150,0.10)');
+  ctx.fillStyle = trailGrad;
+  ctx.fill();
+  ctx.restore();
+
+  // Sweep line
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(CX, CY);
+  ctx.lineTo(CX + Math.cos(angle) * R, CY + Math.sin(angle) * R);
+  const lineGrad = ctx.createLinearGradient(CX, CY, CX + Math.cos(angle)*R, CY + Math.sin(angle)*R);
+  lineGrad.addColorStop(0, 'rgba(0,200,150,0)');
+  lineGrad.addColorStop(0.3, 'rgba(0,200,150,0.6)');
+  lineGrad.addColorStop(1, 'rgba(0,200,150,1)');
+  ctx.strokeStyle = lineGrad;
+  ctx.lineWidth = 2;
+  ctx.shadowColor = '#00C896';
+  ctx.shadowBlur  = 8;
+  ctx.stroke();
+  ctx.restore();
+}
+
+/* Draw blips */
+function drawBlips(stocks) {
+  stocks.forEach(s => {
+    const { x, y } = stockToXY(s);
+    const size  = dotSize(s);
+    const color = dotColor(s);
+    const glow  = glowBlips[s.ticker] || 0;
+
+    // Glow ring when lit up
+    if (glow > 0.05) {
+      ctx.beginPath();
+      ctx.arc(x, y, size + 6 * glow, 0, Math.PI * 2);
+      ctx.fillStyle = color.replace(')', `,${glow * 0.4})`).replace('rgb', 'rgba');
+      ctx.fill();
+    }
+
+    ctx.beginPath();
+    ctx.arc(x, y, size * (1 + glow * 0.5), 0, Math.PI * 2);
+    ctx.fillStyle = color;
+    ctx.shadowColor = color;
+    ctx.shadowBlur  = glow > 0 ? 16 * glow : 4;
+    ctx.fill();
+    ctx.shadowBlur  = 0;
+  });
+}
+
+/* Check if sweep passes over blip */
+function checkSweepBlips(angle, stocks) {
+  stocks.forEach(s => {
+    const { x, y } = stockToXY(s);
+    const blipAngle = Math.atan2(y - CY, x - CX);
+    const diff = Math.abs(((angle - blipAngle) % (Math.PI*2) + Math.PI*2) % (Math.PI*2));
+    if (diff < 0.08 || diff > Math.PI*2 - 0.08) {
+      glowBlips[s.ticker] = 1;
+    }
+  });
+  // Decay
+  Object.keys(glowBlips).forEach(k => {
+    glowBlips[k] = Math.max(0, (glowBlips[k] || 0) - 0.025);
+    if (glowBlips[k] < 0.01) delete glowBlips[k];
+  });
+}
+
+/* Main animation loop */
+let scanRotations = 0;
+let lastScanStart = 0;
+
+function animate(t) {
+  requestAnimationFrame(animate);
+  const stocks = filteredStocks();
+
+  if (isScanning) {
+    sweepAngle += 0.035;
+    const fullRotations = sweepAngle / (Math.PI * 2);
+    if (fullRotations - lastScanStart >= 3) { isScanning = false; showResults(stocks); }
+    checkSweepBlips(sweepAngle, stocks);
+  } else {
+    // Idle slow sweep
+    sweepAngle += 0.008;
+    checkSweepBlips(sweepAngle, stocks);
+  }
+
+  drawRadarBg();
+  drawSweep(sweepAngle);
+  drawBlips(stocks);
+}
+
+requestAnimationFrame(animate);
+
+// Scan button
+function runScan() {
+  if (!Usage.checkAndConsume()) return;
+  isScanning = true;
+  lastScanStart = sweepAngle / (Math.PI * 2);
+  document.getElementById('scanBtn').textContent = 'Scanning...';
+  document.getElementById('scanBtn').disabled = true;
+  setTimeout(() => {
+    document.getElementById('scanBtn').textContent = 'Run Full Scan';
+    document.getElementById('scanBtn').disabled = false;
+  }, 10000);
+}
+
+function showResults(stocks) {
+  const sec = document.getElementById('resultsSection');
+  sec.style.display = 'block';
+  sec.scrollIntoView({ behavior:'smooth', block:'start' });
+  document.getElementById('scanCountLabel').textContent = `${stocks.length} stocks found`;
+  const sorted = [...stocks].sort((a,b) => b.fundamentalScore - a.fundamentalScore);
+  const tableEl = document.getElementById('scanResultsTable');
+  tableEl.innerHTML = `<table class="data-table" style="background:transparent">
+    <thead><tr>
+      <th>Ticker</th><th>Signal</th><th>Price</th><th>RSI</th><th>Score</th><th>Sector</th>
+    </tr></thead>
+    <tbody>${sorted.map(s => {
+      const bc = s.signal==='BUY'?'badge-buy':s.signal==='SELL'?'badge-sell':'badge-hold';
+      return `<tr style="cursor:pointer" onclick="openReport('${s.ticker}')">
+        <td><strong style="font-family:var(--font-data)">${s.ticker}</strong></td>
+        <td><span class="badge ${bc}">${s.signal}</span></td>
+        <td style="font-family:var(--font-data)">GHS ${s.price.toFixed(2)}</td>
+        <td style="font-family:var(--font-data);color:${s.rsi>70?'var(--red)':s.rsi<35?'var(--emerald)':'inherit'}">${s.rsi}</td>
+        <td style="font-family:var(--font-data);color:${s.fundamentalScore>=70?'var(--emerald)':s.fundamentalScore>=50?'var(--amber)':'var(--red)'}">${s.fundamentalScore}</td>
+        <td style="font-size:13px;color:var(--text-secondary)">${s.sector}</td>
+      </tr>`;
+    }).join('')}</tbody>
+  </table>`;
+}
+
+/* Tooltip */
+const tooltip = document.getElementById('radarTooltip');
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (SIZE / rect.width);
+  const my = (e.clientY - rect.top) * (SIZE / rect.height);
+  const stocks = filteredStocks();
+  let found = null;
+  stocks.forEach(s => {
+    const { x, y } = stockToXY(s);
+    const dist = Math.hypot(mx - x, my - y);
+    if (dist < dotSize(s) + 8) found = s;
+  });
+  if (found) {
+    const bc = found.signal==='BUY'?'badge-buy':found.signal==='SELL'?'badge-sell':'badge-hold';
+    tooltip.innerHTML = `
+      <div class="tt-ticker">${found.ticker} <span class="badge ${bc}" style="font-size:10px">${found.signal}</span></div>
+      <div class="tt-name">${found.name}</div>
+      <div class="tt-row"><span class="tt-lbl">Price</span><span class="tt-val">GHS ${found.price.toFixed(2)}</span></div>
+      <div class="tt-row"><span class="tt-lbl">RSI</span><span class="tt-val">${found.rsi}</span></div>
+      <div class="tt-row"><span class="tt-lbl">Score</span><span class="tt-val">${found.fundamentalScore}/100</span></div>
+      <div class="tt-row"><span class="tt-lbl">Sector</span><span class="tt-val">${found.sector}</span></div>`;
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 14) + 'px';
+    tooltip.style.top  = (e.clientY - 10) + 'px';
+    canvas.style.cursor = 'pointer';
+  } else {
+    tooltip.style.display = 'none';
+    canvas.style.cursor = 'crosshair';
+  }
+});
+canvas.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+canvas.addEventListener('click', e => {
+  const rect = canvas.getBoundingClientRect();
+  const mx = (e.clientX - rect.left) * (SIZE / rect.width);
+  const my = (e.clientY - rect.top) * (SIZE / rect.height);
+  filteredStocks().forEach(s => {
+    const { x, y } = stockToXY(s);
+    if (Math.hypot(mx - x, my - y) < dotSize(s) + 8) openReport(s.ticker);
+  });
+});
+
+/* Report panel */
+function openReport(ticker) {
+  if (!Usage.checkAndConsume()) return;
+  const s = GSE.getStock(ticker);
+  if (!s) return;
+  const alloc = GSE.calcAllocation(ticker, profile.capitalAmount || 5000, profile.riskProfile || 'moderate');
+  const bc = s.signal==='BUY'?'badge-buy':s.signal==='SELL'?'badge-sell':'badge-hold';
+  document.getElementById('reportContent').innerHTML = `
+    <div style="margin-bottom:20px">
+      <div class="rp-ticker">${s.ticker}</div>
+      <div class="rp-name">${s.name}</div>
+      <span class="badge ${bc}" style="font-size:14px;padding:6px 16px">${s.signal}</span>
+    </div>
+    <div class="rp-section">
+      <div class="rp-section-title">Technical</div>
+      <div class="rp-row"><span class="rp-lbl">Price</span><span class="rp-val">GHS ${s.price.toFixed(2)}</span></div>
+      <div class="rp-row"><span class="rp-lbl">RSI</span><span class="rp-val" style="color:${s.rsi>70?'var(--red)':s.rsi<35?'var(--emerald)':'inherit'}">${s.rsi}</span></div>
+      <div class="rp-row"><span class="rp-lbl">Change</span><span class="rp-val" style="color:${s.change>0?'var(--emerald)':'var(--red)'}">${s.change>0?'+':''}${s.change}%</span></div>
+      <div class="rp-row"><span class="rp-lbl">Volume</span><span class="rp-val">${s.volume.toLocaleString()}</span></div>
+    </div>
+    <div class="rp-section">
+      <div class="rp-section-title">Fundamentals</div>
+      <div class="rp-row"><span class="rp-lbl">P/E Ratio</span><span class="rp-val">${s.pe}x</span></div>
+      <div class="rp-row"><span class="rp-lbl">Dividend Yield</span><span class="rp-val">${s.divYield}%</span></div>
+      <div class="rp-row"><span class="rp-lbl">Score</span><span class="rp-val">${s.fundamentalScore}/100</span></div>
+      <div class="rp-row"><span class="rp-lbl">Market Cap</span><span class="rp-val" style="text-transform:capitalize">${s.marketCap}</span></div>
+    </div>
+    ${alloc ? `<div class="rp-section">
+      <div class="rp-section-title">Your Portfolio Allocation</div>
+      <div class="rp-row"><span class="rp-lbl">Suggested %</span><span class="rp-val" style="color:var(--gold)">${alloc.pct}%</span></div>
+      <div class="rp-row"><span class="rp-lbl">Amount (GHS)</span><span class="rp-val" style="color:var(--emerald)">GHS ${alloc.amount.toFixed(2)}</span></div>
+      <div class="rp-row"><span class="rp-lbl">Shares</span><span class="rp-val">~${alloc.shares}</span></div>
+    </div>` : ''}
+    <a href="dashboard.html" class="btn btn-primary btn-lg" style="margin-top:8px">View on Dashboard →</a>`;
+  document.getElementById('reportPanel').classList.add('open');
+}
+
+function closeReport() { document.getElementById('reportPanel').classList.remove('open'); }
+
+// React to live data updates if results table is open
+window.addEventListener('gseDataUpdated', () => {
+  if (document.getElementById('resultsSection') && document.getElementById('resultsSection').style.display === 'block') {
+    showResults(filteredStocks());
+  }
+});
+</script>
+</body>
+</html>

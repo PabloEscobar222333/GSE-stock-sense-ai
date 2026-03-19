@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Pricing — StockSense AI</title>
+  <link rel="stylesheet" href="styles/main.css"/>
+  <style>
+    .pricing-page { max-width:900px; margin:0 auto; }
+    .pricing-hero { text-align:center; margin-bottom:48px; }
+    .pricing-hero h1 { font-size:40px; margin-bottom:12px; }
+    .pricing-hero p  { font-size:17px; color:var(--text-secondary); }
+    .free-banner { display:flex; align-items:center; gap:12px; background:var(--emerald-glow); border:1px solid rgba(0,200,150,0.2); border-radius:var(--radius-pill); padding:14px 24px; justify-content:center; margin-bottom:40px; font-size:15px; color:var(--text-secondary); }
+    .pricing-cards { display:grid; grid-template-columns:1fr 1fr; gap:24px; margin-bottom:48px; }
+    .pc { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-lg); padding:40px 36px; position:relative; display:flex; flex-direction:column; gap:24px; transition:all 0.25s ease; }
+    .pc:hover { transform:translateY(-4px); box-shadow:0 20px 60px rgba(0,0,0,0.4); }
+    .pc.featured { border-color:var(--gold); background:linear-gradient(135deg,rgba(201,168,76,0.07),rgba(10,15,30,0.8)); }
+    .pc .best-value { position:absolute; top:-14px; left:50%; transform:translateX(-50%); background:linear-gradient(135deg,var(--gold),var(--gold-light)); color:var(--bg-deep); font-size:10px; font-weight:700; letter-spacing:0.1em; text-transform:uppercase; padding:5px 16px; border-radius:var(--radius-pill); }
+    .pc-name  { font-size:12px; font-weight:600; letter-spacing:0.1em; text-transform:uppercase; color:var(--text-muted); }
+    .pc-price { display:flex; align-items:baseline; gap:6px; }
+    .pc-price .cur { font-size:18px; color:var(--text-secondary); font-family:var(--font-display); }
+    .pc-price .amt { font-family:var(--font-display); font-size:52px; font-weight:600; line-height:1; }
+    .pc-price .per { font-size:15px; color:var(--text-muted); }
+    .pc-save  { font-size:13px; color:var(--emerald); }
+    .pc-feats { list-style:none; display:flex; flex-direction:column; gap:10px; flex:1; }
+    .pc-feats li { font-size:14px; color:var(--text-secondary); display:flex; align-items:center; gap:10px; }
+    .pc-feats .chk { color:var(--emerald); flex-shrink:0; }
+    .pc-feats .chk.gold { color:var(--gold); }
+    .faq-section { margin-top:24px; }
+    .faq-item { border-bottom:1px solid var(--border); padding:18px 0; cursor:pointer; }
+    .faq-q { font-size:15px; font-weight:500; display:flex; justify-content:space-between; align-items:center; }
+    .faq-a { font-size:14px; color:var(--text-secondary); line-height:1.7; padding-top:10px; display:none; }
+    .faq-item.open .faq-a { display:block; }
+    .faq-item.open .faq-arrow { transform:rotate(180deg); }
+    .faq-arrow { transition:transform 0.2s; color:var(--text-muted); }
+    @media(max-width:768px) { .pricing-cards{grid-template-columns:1fr;} .pricing-hero h1{font-size:28px;} }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarHolder"></div>
+  <main class="main-content">
+    <div class="topbar">
+      <div class="topbar-left"><h2>Pricing Plans</h2><div class="topbar-sub">Simple, transparent pricing for every investor</div></div>
+      <div class="topbar-right"><div class="usage-pill" data-usage-pill></div></div>
+    </div>
+    <div class="page-body">
+      <div class="pricing-page">
+        <div class="pricing-hero">
+          <h1>Start free. Upgrade when ready.</h1>
+          <p>Every plan includes personalised signals, risk profiling, and portfolio allocation.</p>
+        </div>
+
+        <div class="free-banner">
+          <span class="badge badge-buy">Free Tier</span>
+          <span>Sign up and get <strong>5 free stock analyses</strong> — no payment required.</span>
+        </div>
+
+        <div class="pricing-cards">
+          <!-- Monthly -->
+          <div class="pc">
+            <div class="pc-name">Monthly</div>
+            <div class="pc-price"><span class="cur">GHS</span><span class="amt">100</span><span class="per">/month</span></div>
+            <ul class="pc-feats">
+              <li><span class="chk">✓</span>Unlimited stock analyses</li>
+              <li><span class="chk">✓</span>Real-time AI signals</li>
+              <li><span class="chk">✓</span>Portfolio allocator</li>
+              <li><span class="chk">✓</span>Radar scanner</li>
+              <li><span class="chk">✓</span>News monitor</li>
+              <li><span class="chk">✓</span>Alert system</li>
+              <li><span class="chk">✓</span>AI Analyst Chat</li>
+              <li><span class="chk">✓</span>Email support</li>
+            </ul>
+            <button class="btn btn-primary btn-lg" id="monthlyUpgradeBtn" onclick="handleUpgrade('monthly')">Choose Monthly</button>
+          </div>
+          <!-- Yearly -->
+          <div class="pc featured">
+            <div class="best-value">Best Value</div>
+            <div style="color:var(--gold)" class="pc-name">Yearly</div>
+            <div class="pc-price"><span class="cur">GHS</span><span class="amt" style="color:var(--text-primary)">900</span><span class="per">/year</span></div>
+            <div class="pc-save">Save GHS 300 vs monthly · billed once</div>
+            <ul class="pc-feats">
+              <li><span class="chk gold">✓</span>Everything in Monthly</li>
+              <li><span class="chk gold">✓</span>Priority signal alerts</li>
+              <li><span class="chk gold">✓</span>Advanced macro dashboard</li>
+              <li><span class="chk gold">✓</span>Downloadable PDF reports</li>
+              <li><span class="chk gold">✓</span>Early access to new features</li>
+              <li><span class="chk gold">✓</span>Dedicated support</li>
+            </ul>
+            <button class="btn btn-gold btn-lg" id="yearlyUpgradeBtn" onclick="handleUpgrade('yearly')">Choose Yearly — Best Value</button>
+          </div>
+        </div>
+
+        <p style="text-align:center;font-size:13px;color:var(--text-muted);margin-bottom:40px">Cancel anytime. No hidden fees. Payment handled securely.</p>
+
+        <!-- FAQ -->
+        <div class="faq-section">
+          <h3 style="margin-bottom:4px">Frequently Asked Questions</h3>
+          <div class="divider"></div>
+          <div class="faq-item" onclick="toggleFaq(this)">
+            <div class="faq-q">What does the free tier include? <span class="faq-arrow">▾</span></div>
+            <div class="faq-a">The free tier gives you 5 stock analyses — covering manual lookups, AI chat analyses, and radar scanner runs. No payment required, no card needed to sign up.</div>
+          </div>
+          <div class="faq-item" onclick="toggleFaq(this)">
+            <div class="faq-q">What counts as an "analysis"? <span class="faq-arrow">▾</span></div>
+            <div class="faq-a">Every time you run a stock signal report, ask the AI chat for analysis, or run a radar scanner session, it counts as one analysis. Browsing the dashboard, watchlist, and news does not consume analyses.</div>
+          </div>
+          <div class="faq-item" onclick="toggleFaq(this)">
+            <div class="faq-q">Can I cancel my subscription? <span class="faq-arrow">▾</span></div>
+            <div class="faq-a">Yes. You can cancel at any time. Your premium access remains active until the end of your billing period.</div>
+          </div>
+          <div class="faq-item" onclick="toggleFaq(this)">
+            <div class="faq-q">Is this financial advice? <span class="faq-arrow">▾</span></div>
+            <div class="faq-a">No. StockSense AI provides educational and informational analysis only. All signals and allocation advice should be considered alongside your own research and, where appropriate, professional financial advice.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="mobileNavHolder"></div>
+</div>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+if (!Auth.requireAuth()) throw new Error();
+initApp('pricing.html');
+
+function handleUpgrade(plan) {
+  const sub = { isPremium:true, plan, startedAt:Date.now() };
+  localStorage.setItem('gse_subscription', JSON.stringify(sub));
+  Usage.updateAllCounters();
+  Toast.show('success', `You're now on the ${plan==='monthly'?'Monthly':'Yearly'} plan! Enjoy unlimited access.`);
+  document.getElementById('monthlyUpgradeBtn').textContent = plan==='monthly' ? '✓ Active Plan' : 'Choose Monthly';
+  document.getElementById('yearlyUpgradeBtn').textContent  = plan==='yearly'  ? '✓ Active Plan' : 'Choose Yearly — Best Value';
+}
+
+// Show current plan status
+const sub = (() => { try { return JSON.parse(localStorage.getItem('gse_subscription')); } catch { return null; } })();
+if (sub && sub.isPremium) {
+  const btn = sub.plan === 'monthly' ? 'monthlyUpgradeBtn' : 'yearlyUpgradeBtn';
+  document.getElementById(btn).textContent = '✓ Current Plan';
+  document.getElementById(btn).disabled = true;
+}
+
+function toggleFaq(el) { el.classList.toggle('open'); }
+</script>
+</body>
+</html>

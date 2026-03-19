@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>KOJO — AI Analyst Chat | StockSense AI</title>
+  <link rel="stylesheet" href="styles/main.css"/>
+  <style>
+    .chat-layout { display:grid; grid-template-columns:1fr 280px; gap:20px; height:calc(100vh - var(--topbar-height) - 56px); }
+    .chat-main   { display:flex; flex-direction:column; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); overflow:hidden; }
+
+    .chat-messages { flex:1; overflow-y:auto; padding:20px; display:flex; flex-direction:column; gap:16px; }
+
+    .msg { display:flex; gap:12px; max-width:85%; animation:fadeUp 0.3s ease; }
+    .msg.user  { flex-direction:row-reverse; align-self:flex-end; }
+    .msg.ai    { align-self:flex-start; }
+
+    .msg-avatar { width:32px; height:32px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-size:13px; font-weight:700; flex-shrink:0; }
+    .msg.ai .msg-avatar   { background:linear-gradient(135deg,var(--gold),var(--emerald)); color:var(--bg-deep); }
+    .msg.user .msg-avatar { background:linear-gradient(135deg,var(--purple),var(--gold)); color:white; }
+
+    .msg-bubble { padding:12px 16px; border-radius:16px; font-size:14px; line-height:1.6; }
+    .msg.ai .msg-bubble   { background:rgba(255,255,255,0.06); border:1px solid var(--border); border-bottom-left-radius:4px; }
+    .msg.user .msg-bubble { background:rgba(0,200,150,0.12); border:1px solid rgba(0,200,150,0.2); border-bottom-right-radius:4px; }
+
+    /* Markdown-like rendering in bubble */
+    .msg-bubble strong { color:var(--text-primary); font-weight:600; }
+    .msg-bubble table  { width:100%; border-collapse:collapse; margin:8px 0; font-size:12px; }
+    .msg-bubble th,
+    .msg-bubble td     { padding:6px 10px; border:1px solid var(--border); text-align:left; }
+    .msg-bubble th     { background:rgba(255,255,255,0.04); color:var(--text-muted); }
+
+    /* Typing indicator */
+    .typing-dots { display:flex; gap:4px; padding:14px 16px; background:rgba(255,255,255,0.06); border:1px solid var(--border); border-radius:16px; border-bottom-left-radius:4px; width:fit-content; }
+    .typing-dot  { width:7px; height:7px; border-radius:50%; background:var(--text-muted); animation:typingBounce 1.2s infinite; }
+    .typing-dot:nth-child(2) { animation-delay:0.2s; }
+    .typing-dot:nth-child(3) { animation-delay:0.4s; }
+    @keyframes typingBounce { 0%,60%,100%{transform:translateY(0)} 30%{transform:translateY(-6px)} }
+
+    /* Input area */
+    .chat-input-area { padding:16px; border-top:1px solid var(--border); display:flex; gap:10px; }
+    .chat-input { flex:1; padding:12px 16px; background:rgba(255,255,255,0.04); border:1px solid var(--border); border-radius:var(--radius-pill); color:var(--text-primary); font-size:14px; outline:none; font-family:var(--font-body); resize:none; max-height:100px; transition:border-color 0.2s; }
+    .chat-input:focus { border-color:var(--emerald); }
+    .chat-send { width:42px; height:42px; border-radius:50%; background:var(--emerald); color:var(--bg-deep); display:flex; align-items:center; justify-content:center; cursor:pointer; transition:all 0.2s; flex-shrink:0; align-self:flex-end; border:none; }
+    .chat-send:hover { box-shadow:var(--shadow-glow-emerald); transform:scale(1.05); }
+
+    /* Suggestions panel */
+    .chat-suggestions { display:flex; flex-direction:column; gap:8px; }
+    .suggestion-btn { padding:10px 14px; background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-sm); font-size:13px; color:var(--text-secondary); cursor:pointer; text-align:left; transition:all 0.2s; font-family:var(--font-body); }
+    .suggestion-btn:hover { border-color:var(--emerald); color:var(--text-primary); background:var(--emerald-glow); }
+
+    @media(max-width:1024px) { .chat-layout { grid-template-columns:1fr; } .chat-suggestions { display:none; } }
+    @media(max-width:768px)  {
+      .chat-layout { height:calc(100dvh - 56px - 72px); }
+      .chat-input { font-size:16px; /* prevents iOS zoom */ }
+      .chat-input-area { padding:12px; gap:8px; }
+      .chat-send { width:46px; height:46px; } /* easier tap target */
+      .msg { max-width:95%; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarHolder"></div>
+  <main class="main-content">
+    <div class="topbar">
+      <div class="topbar-left"><h2>KOJO — AI Analyst</h2><div class="topbar-sub">Your GSE specialist. Ask anything.</div></div>
+      <div class="topbar-right"><div class="usage-pill" data-usage-pill></div></div>
+    </div>
+    <div class="page-body" style="height:calc(100% - var(--topbar-height));overflow:hidden;padding:12px">
+      <div class="chat-layout" style="height:100%">
+        <!-- Chat window -->
+        <div class="chat-main">
+          <div class="chat-messages" id="chatMessages"></div>
+          <div class="chat-input-area">
+            <textarea class="chat-input" id="chatInput" rows="1" placeholder="Ask me: 'Analyse MTNGH' or 'Top picks today'..." onkeydown="handleKey(event)"></textarea>
+            <button class="chat-send" onclick="sendMessage()" id="sendBtn" aria-label="Send">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>
+            </button>
+          </div>
+        </div>
+        <!-- Suggestions sidebar -->
+        <div>
+          <div class="label" style="padding:0 4px;margin-bottom:10px">Suggested Prompts</div>
+          <div class="chat-suggestions">
+            <button class="suggestion-btn" onclick="setInput('Analyse MTNGH')">Analyse MTNGH</button>
+            <button class="suggestion-btn" onclick="setInput('Should I buy GCB?')">Should I buy GCB?</button>
+            <button class="suggestion-btn" onclick="setInput('Top picks today')">Top picks today</button>
+            <button class="suggestion-btn" onclick="setInput('Scan the market')">Scan the market</button>
+            <button class="suggestion-btn" onclick="setInput('Sell warnings')">Sell warnings</button>
+            <button class="suggestion-btn" onclick="setInput('Best dividend stocks')">Best dividend stocks</button>
+            <button class="suggestion-btn" onclick="setInput('Macro view')">Macro view</button>
+            <button class="suggestion-btn" onclick="setInput('What is RSI?')">What is RSI?</button>
+            <button class="suggestion-btn" onclick="setInput('My risk profile')">My risk profile</button>
+            <button class="suggestion-btn" onclick="setInput('Compare GCB and MTNGH')">Compare GCB and MTNGH</button>
+            <button class="suggestion-btn" onclick="setInput('Who are you?')">Who is KOJO?</button>
+            <button class="suggestion-btn" onclick="setInput('How much should I invest in ACCESS?')">How much to invest in ACCESS?</button>
+            <button class="suggestion-btn" onclick="setInput('I want to build wealth')">I want to build wealth</button>
+            <button class="suggestion-btn" onclick="setInput('What is happening with the cedi?')">What about the cedi?</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="mobileNavHolder"></div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+if (!Auth.requireAuth()) throw new Error();
+const user    = Auth.getSession() || {};
+const profile = Profile.get() || { riskProfile:'moderate', capitalAmount:5000 };
+const rules   = GSE.profileRules[profile.riskProfile] || GSE.profileRules.moderate;
+const firstName = (user.name || 'Investor').split(' ')[0];
+initApp('chat.html');
+
+const messagesEl = document.getElementById('chatMessages');
+let waiting = false;
+
+/* ── Session Memory ─────────────────────────────────────────────
+   Tracks within-session context for personalised responses
+──────────────────────────────────────────────────────────────── */
+const memory = {
+  discussedTickers: [],
+  lastTicker: null,
+  capitalMentioned: profile.capitalAmount || 5000,
+  addTicker(t) { if (t && !this.discussedTickers.includes(t)) this.discussedTickers.push(t); this.lastTicker = t; },
+};
+
+/* ── Helpers ──────────────────────────────────────────────────── */
+function scrollBottom() { messagesEl.scrollTop = messagesEl.scrollHeight; }
+
+function addMsg(role, html) {
+  const initials = role === 'user' ? (user.name||'U')[0].toUpperCase() : 'KJ';
+  const div = document.createElement('div');
+  div.className = `msg ${role}`;
+  div.innerHTML = `
+    <div class="msg-avatar">${initials}</div>
+    <div class="msg-bubble">${html}</div>`;
+  messagesEl.appendChild(div);
+  scrollBottom();
+}
+
+function showTyping() {
+  const div = document.createElement('div');
+  div.className = 'msg ai'; div.id = 'typing';
+  div.innerHTML = `<div class="msg-avatar">KJ</div><div class="typing-dots"><div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div></div>`;
+  messagesEl.appendChild(div); scrollBottom();
+}
+function hideTyping() { const t = document.getElementById('typing'); if(t) t.remove(); }
+
+/* Pick one response at random from an array */
+function pick(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+
+/* Canonical badge HTML */
+function signalBadge(signal) {
+  return signal==='BUY'?'<span class="badge badge-buy">BUY</span>':signal==='SELL'?'<span class="badge badge-sell">SELL</span>':'<span class="badge badge-hold">HOLD</span>';
+}
+
+/* ── Call-to-action bridge endings ───────────────────────────── */
+const CTAS = [
+  'Want me to scan the market for you?',
+  'Shall we look at a specific stock?',
+  'Want to see your top picks based on your risk profile?',
+  'Ready to run the radar scanner?',
+  'Should I show you the best opportunities on the GSE right now?',
+  'Want a full market scan tailored to your profile?',
+];
+function cta() { return `<br><br><em style="color:var(--text-muted)">${pick(CTAS)}</em>`; }
+
+/* ── Stock report ────────────────────────────────────────────── */
+function stockReport(s) {
+  memory.addTicker(s.ticker);
+  const alloc = GSE.calcAllocation(s.ticker, memory.capitalMentioned, profile.riskProfile);
+  const rsiColor = s.rsi>70?'var(--red)':s.rsi<35?'var(--emerald)':'var(--text-primary)';
+  const rsiVerdict = s.rsi>70?'overbought — tread carefully':s.rsi>55?'slightly elevated':'healthy entry zone';
+  const signalRationale = s.signal==='BUY'
+    ? `RSI is in a ${rsiVerdict}, fundamentals score ${s.fundamentalScore}/100, and the dividend yield of ${s.divYield}% gives you income while you wait for the price to move.`
+    : s.signal==='SELL'
+    ? `RSI at ${s.rsi} signals overbought territory. The market may have already priced in the upside. I'd wait for a pullback before considering entry.`
+    : `RSI at ${s.rsi} sits in a neutral zone. The stock isn't screaming BUY or SELL — it's one to monitor closely.`;
+
+  return `${signalBadge(s.signal)} <strong>${s.ticker} — ${s.name}</strong><br><br>
+    <table><tr><th>Metric</th><th>Value</th><th>Context</th></tr>
+    <tr><td>Price</td><td>GHS ${s.price.toFixed(2)}</td><td>${s.change>0?`▲ +${s.change}%`:`▼ ${s.change}%`} today</td></tr>
+    <tr><td>RSI</td><td style="color:${rsiColor}">${s.rsi}</td><td>${rsiVerdict}</td></tr>
+    <tr><td>P/E Ratio</td><td>${s.pe}x</td><td>${s.pe<15?'Undervalued range':s.pe<25?'Fair value':'Premium priced'}</td></tr>
+    <tr><td>Div Yield</td><td>${s.divYield}%</td><td>${s.divYield>=4?'Strong income':'Moderate income'}</td></tr>
+    <tr><td>Fund. Score</td><td>${s.fundamentalScore}/100</td><td>${s.fundamentalScore>=70?'Strong fundamentals':s.fundamentalScore>=50?'Adequate':'Weak'}</td></tr>
+    <tr><td>Sector</td><td colspan="2">${s.sector}</td></tr></table><br>
+    <strong>My read:</strong> ${signalRationale}<br><br>
+    ${alloc ? `<strong>For your ${rules.label} profile (GHS ${memory.capitalMentioned.toLocaleString()} capital):</strong> consider <strong style="color:var(--emerald)">GHS ${alloc.amount.toFixed(2)}</strong> — that gets you ~<strong>${alloc.shares} shares</strong>.` : ''}`;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   KOJO INTENT ROUTER
+   Priority: specific finance intents → general conversation → fallback
+═══════════════════════════════════════════════════════════════ */
+function routeIntent(raw) {
+  const t = raw.toLowerCase().trim();
+
+  /* ── 1. GREETINGS ─────────────────────────────────────────── */
+  if (/^(hi\b|hello\b|hey\b|howdy|yo\b|sup\b|what's up|wassup|how are you|how are you doing|how's it going|how do you do|ete sen|wo ho te sen|akwaaba|maakye|maaha|maadwo|ɛte sɛn)/i.test(t)) {
+    const h = new Date().getHours();
+    const gr = h<12?'morning':h<17?'afternoon':'evening';
+    return pick([
+      `Hey! Good to see you. Markets are moving today — ready to find your next opportunity?`,
+      `Hello, ${firstName}! KOJO here, your GSE analyst. How can I help you make smarter moves today?`,
+      `Akwaaba! 🤝 Great timing — there are some interesting signals on the GSE right now. What would you like to analyse?`,
+      `Good ${gr}! I'm watching the markets closely. What's on your mind, ${firstName}?`,
+      `Hey there! Always good to connect. Shall we talk stocks, or is there something else on your mind?`,
+    ]);
+  }
+
+  /* ── 2. WHO IS KOJO ──────────────────────────────────────── */
+  if (/who are you|what are you|what can you do|are you human|are you a robot|are you ai|are you real|what is kojo|tell me about yourself|your name|introduce yourself/i.test(t)) {
+    return `I'm <strong>KOJO</strong> — your AI-powered Ghana Stock Exchange analyst.
+      Think of me as a Bloomberg terminal that actually talks to you like a person.<br><br>
+      I can analyse any of the <strong>31 stocks</strong> on the GSE, generate BUY/SELL/HOLD signals,
+      tell you exactly how much to allocate based on your capital, track macro news,
+      run a full market scan, and help you build a smarter portfolio.<br><br>
+      Am I human? No. Am I better than most human analysts at 2am? Absolutely.<br><br>
+      What would you like to explore?`;
+  }
+
+  /* ── 3. THANK YOU ─────────────────────────────────────────── */
+  if (/thank you|thanks|thank u|\bthx\b|appreciate it|much appreciated|great job|well done|you're amazing|this is helpful|very helpful|you're good|you're the best|medaase|ɛda ase|ayekoo/i.test(t)) {
+    return pick([
+      `Always a pleasure! That's what I'm here for. Is there another stock you'd like me to look at?`,
+      `Glad that helped! The market waits for no one — shall we keep going?`,
+      `Medaase! 🙏 Let's keep finding you the best opportunities on the GSE.`,
+      `That's what I'm here for. Now — want me to scan the full market for your next move?`,
+    ]);
+  }
+
+  /* ── 4. FRUSTRATION ──────────────────────────────────────── */
+  if (/this is useless|you're wrong|bad advice|i lost money|terrible|i don't understand|this is confusing|not helpful|rubbish|nonsense|you don't know|disappointed|this doesn't work|i'm frustrated|too complicated/i.test(t)) {
+    return pick([
+      `I hear you — investing can be genuinely frustrating, especially when markets are this volatile. Let me try again. Which part wasn't clear? I'll break it down differently.`,
+      `Fair point — let me be more direct. Tell me specifically what you need and I'll give you a straight answer.`,
+      `I'm sorry that wasn't helpful. My goal is to make this as clear as possible for you. What would you like me to explain differently?`,
+      `Losing money is painful — I won't pretend otherwise. Let's take a step back and look at what the data is saying right now. Want to start fresh with a clean analysis?`,
+    ]);
+  }
+
+  /* ── 5. COMPLIMENTS / FLIRTING / PLAYFULNESS ──────────────── */
+  if (/i love you|you're beautiful|marry me|you're funny|\blol\b|\bhaha\b|you crack me up|you're cool|best app ever|i like you|can we date|are you single/i.test(t)) {
+    return pick([
+      `Ha! I appreciate the love — unfortunately I'm in a committed relationship with the Ghana Stock Exchange. But I can absolutely help you build wealth. Shall we?`,
+      `You're too kind 😄 I'll take the compliment. Now — ready to find some winning stocks?`,
+      `LOL — if I had feelings, I'd be flattered. For now, let's channel that energy into the markets. What are we analysing today?`,
+    ]);
+  }
+
+  /* ── 6. BOREDOM / CASUAL ─────────────────────────────────── */
+  if (/i'm bored|nothing to do|just chatting|just browsing|killing time|entertain me|talk to me/i.test(t)) {
+    return pick([
+      `Bored? Perfect timing. Did you know MTN Ghana is trading well below its estimated fair value right now? That's not boring — that's an opportunity. Want me to break it down?`,
+      `If you're killing time, let me show you something interesting — the GSE has been one of the best performing markets in 2026. Want to see which stocks are driving it?`,
+      `I never get bored — there's always something moving on the GSE. Right now I'm seeing ${GSE.getSignalStocks('BUY', profile.riskProfile).length} active BUY signals. Curious?`,
+    ]);
+  }
+
+  /* ── 7. CONFUSION / BEGINNER ─────────────────────────────── */
+  if (/i don't know|not sure|where do i start|i'm new|i'm a beginner|how does this work|\bconfused\b|what should i do|guide me|i need help|teach me|i want to learn|explain to me/i.test(t)) {
+    return pick([
+      `No worries at all — everyone starts somewhere. Here's the simplest way to use me:<br><br>
+      <strong>1.</strong> Tell me how much you want to invest<br>
+      <strong>2.</strong> I check your risk profile (or ask a few quick questions)<br>
+      <strong>3.</strong> I scan the market and tell you exactly which stocks to consider and how much to put in each<br><br>
+      Want to start with step 1?`,
+      `Let's keep it simple. Just tell me one of these:<br><br>
+      → How much capital do you have to invest?<br>
+      → Name a stock you've heard about<br>
+      → Say <strong>'scan the market'</strong><br><br>
+      I'll take it from there.`,
+    ]);
+  }
+
+  /* ── 8. WEALTH / MONEY MINDSET ───────────────────────────── */
+  if (/i want to be rich|make money|get rich|financial freedom|i need money|build wealth|passive income|retirement|save money|invest wisely|grow my money|double my money/i.test(t)) {
+    return pick([
+      `Smart thinking. The stock market is one of the most powerful wealth-building tools available — and the GSE has delivered extraordinary returns in 2026. The key is patience, diversification, and buying at the right time.<br><br>
+      Let me start with: how much capital do you have available to invest right now?`,
+      `Financial freedom starts with one good decision. Let me help you make yours. Tell me your budget and I'll show you exactly where to start on the Ghana Stock Exchange.`,
+      `The opportunity is real — but so is the risk if you don't know what you're doing. That's exactly why I exist.<br><br>How much are you working with, ${firstName}?`,
+    ]);
+  }
+
+  /* ── 9. GHANA CONTEXT — CEDI / FOREX ─────────────────────── */
+  if (/cedi|exchange rate|forex|dollar rate|usd.ghs|\bforex\b/i.test(t)) {
+    const m = GSE.macro;
+    return `The cedi is currently at <strong>GHS ${m.usdGhs} per USD</strong> — stabilising recently, which is actually good news for the stock market.<br><br>
+      A steadier cedi means lower inflation pressure and potentially lower interest rates ahead. That's typically <strong style="color:var(--emerald)">bullish for bank stocks</strong> like GCB and EGH.<br><br>
+      Want me to run a signal on GCB or EGH now?`;
+  }
+
+  /* ── 10. GHANA CONTEXT — COCOA ───────────────────────────── */
+  if (/\bcocoa\b/i.test(t)) {
+    const m = GSE.macro;
+    return `Cocoa is at <strong>$${m.cocoaTon.toLocaleString()}/tonne</strong> — near multi-year highs.<br><br>
+      That directly benefits <strong>CPC</strong> (Cocoa Processing Company) on the GSE. It also supports agro-processing margins more broadly.<br><br>
+      Want me to run a quick signal on CPC?`;
+  }
+
+  /* ── 11. GHANA CONTEXT — GOLD ────────────────────────────── */
+  if (/\bgold\b/i.test(t)) {
+    const m = GSE.macro;
+    return `Gold is at <strong>$${m.goldOz.toLocaleString()}/oz</strong> — extraordinary levels.<br><br>
+      That directly benefits <strong>AngloGold Ashanti (AGA/AADS)</strong> and <strong>Asante Gold (ASG)</strong> on the GSE. Mining revenues go up, margins expand.<br><br>
+      Want me to run an analysis on AGA or ASG?`;
+  }
+
+  /* ── 12. GHANA GENERAL CONTEXT ───────────────────────────── */
+  if (/\bghana\b|\baccra\b|\bkumasi\b|\btakoradi\b|\btamale\b|ghana economy|bank of ghana|\bbog\b|mobile money|momo|galamsey/i.test(t)) {
+    return `Ghana's economy is deeply tied to the GSE, so this is very relevant.<br><br>
+      Right now, the most important factors for investors are:<br>
+      📌 <strong>BoG Rate at ${GSE.macro.bogRate}%</strong> — high rates squeeze consumer spending but keep bank margins wide<br>
+      📌 <strong>Cedi at ${GSE.macro.usdGhs}</strong> — stabilising, which helps reduce import costs<br>
+      📌 <strong>Gold & Cocoa booming</strong> — great for mining and agro stocks<br><br>
+      Want me to identify which GSE stocks benefit most from current conditions?`;
+  }
+
+  /* ── 13. PHILOSOPHICAL / EXISTENTIAL ─────────────────────── */
+  if (/meaning of life|why are we here|what is money|is investing worth it|should i even bother|life is hard|is the market rigged|can i trust you|is this legit/i.test(t)) {
+    return pick([
+      `The meaning of life? Unclear. The meaning of compound returns over 10 years? Extremely clear. Let me show you.${cta()}`,
+      `Is the market rigged? Sometimes it feels that way. But data, discipline and patience consistently outperform emotion. That's what I help with.${cta()}`,
+      `Can you trust me? I'm built on publicly available financial data, proven analysis frameworks, and zero emotional bias. I don't panic. I don't get greedy. I just read the numbers.${cta()}`,
+      `Investing isn't worth it if you're doing it blindly. It absolutely IS worth it when you have the right information. That's why you're here.${cta()}`,
+    ]);
+  }
+
+  /* ── 14. COMPETITOR AI ───────────────────────────────────── */
+  if (/chatgpt|\bgpt\b|gemini|copilot|other ai|better ai|why not use|compare ai/i.test(t)) {
+    return pick([
+      `ChatGPT is great for many things — but it doesn't know that MTNGH is trading below fair value on the Ghana Stock Exchange today. I do. That's the difference.${cta()}`,
+      `General AI tools are generalists. I'm a specialist — built specifically for the Ghana Stock Exchange, Ghanaian macro conditions, and the Ghanaian investor. That focus is my advantage.${cta()}`,
+    ]);
+  }
+
+  /* ── 15. GOODBYES ────────────────────────────────────────── */
+  if (/\bbye\b|goodbye|see you|see you later|talk later|\bcya\b|i'm done|that's all|logging off|nante yie|yɛbɛhyia bio/i.test(t)) {
+    return pick([
+      `Take care, ${firstName}! Remember — the best time to analyse a stock is before everyone else does. Come back anytime.`,
+      `Nante yie! 🤝 The market will still be here when you return. So will I.`,
+      `See you soon. Keep watching the markets — the GSE never sleeps, and neither do my signals.`,
+    ]);
+  }
+
+  /* ── 16. CURRENT EVENTS / NEWS ───────────────────────────── */
+  if (/\bnews\b|what's happening|latest news|market news|economy news|budget|election|government|parliament|policy/i.test(t)) {
+    const m = GSE.macro;
+    return `Here's what I'm tracking that affects the GSE right now:<br><br>
+      📌 <strong>BoG Policy Rate: ${m.bogRate}%</strong> — high rates are squeezing margins but banks remain profitable<br>
+      📌 <strong>Gold at $${m.goldOz.toLocaleString()}/oz</strong> — bullish for mining stocks<br>
+      📌 <strong>Cocoa at $${m.cocoaTon.toLocaleString()}/t</strong> — positive for agro-processing<br>
+      📌 <strong>Inflation: ${m.inflation}%</strong> — down from recent peaks, easing pressure<br><br>
+      Want me to show you which stocks benefit most from these conditions?`;
+  }
+
+  /* ══════════════════════════════════════════════════════════
+     FINANCE INTENTS — Below here, usage is consumed
+     ══════════════════════════════════════════════════════════ */
+
+  /* ── RSI explanation ─────────────────────────────────────── */
+  if (/what\s+is\s+rsi|explain rsi|rsi meaning|what does rsi mean/i.test(t)) {
+    return `<strong>RSI — Relative Strength Index</strong> is a momentum indicator on a scale of 0–100.<br><br>
+      • <strong style="color:var(--emerald)">RSI &lt; 35</strong> — Oversold. Stock may be due for a bounce. I flag these as BUY candidates.<br>
+      • <strong>RSI 35–60</strong> — Neutral zone. Balanced momentum. Watch and wait.<br>
+      • <strong style="color:var(--amber)">RSI 60–70</strong> — Approaching overbought. Reduce new entries.<br>
+      • <strong style="color:var(--red)">RSI &gt; 70</strong> — Overbought. High reversal risk. I flag these as SELL candidates.<br><br>
+      I combine RSI with P/E ratio, dividend yield, volume, and market cap to generate signals. <em>Never use RSI alone — it's one input, not the whole story.</em><br><br>
+      Want to see which stocks currently have the best RSI entry points?`;
+  }
+
+  /* ── Stock analysis via ticker ───────────────────────────── */
+  const analyseMatch = raw.match(/analys[ei]s?[\s:]+([A-Z]{2,8})/i)
+    || raw.match(/([A-Z]{2,8})[\s]*(stock|share)/i)
+    || raw.match(/look(?:s)?\s+at\s+([A-Z]{2,8})/i)
+    || raw.match(/run\s+(?:a\s+)?(?:signal|analysis|report)\s+(?:on\s+)?([A-Z]{2,8})/i);
+  const singleTickerMatch = raw.trim().match(/^([A-Za-z]{2,8})$/);
+
+  let ticker = null;
+  if (analyseMatch) ticker = (analyseMatch[1] || analyseMatch[2] || '').toUpperCase();
+  if (!ticker && singleTickerMatch) {
+    const candidate = GSE.getStock(singleTickerMatch[1].toUpperCase());
+    if (candidate) ticker = candidate.ticker;
+  }
+  const SKIP_WORDS = /^(SHOULD|BUY|SELL|HOLD|WHAT|HOW|SHOW|SCAN|ALL|FOR|THE|AND|BEST|TOP|MY|NEWS|HELP|TEST)$/i;
+  if (ticker && !SKIP_WORDS.test(ticker)) {
+    const s = GSE.getStock(ticker);
+    if (s) return stockReport(s);
+    return `I couldn't find <strong>${ticker}</strong> on the GSE. Try: <code>MTNGH</code>, <code>GCB</code>, <code>ACCESS</code>, <code>GOIL</code>, <code>BOPP</code>, <code>EGH</code>, <code>TOTAL</code>.<br><br>Or type <strong>'scan the market'</strong> and I'll surface the best opportunities right now.`;
+  }
+
+  /* ── Should I buy? ───────────────────────────────────────── */
+  const buyMatch = raw.match(/should\s+i\s+buy\s+([A-Z]{2,8})/i);
+  if (buyMatch) {
+    const s = GSE.getStock(buyMatch[1].toUpperCase());
+    if (!s) return `That ticker isn't on my radar. Try: MTNGH, GCB, ACCESS, GOIL, or EGH.`;
+    memory.addTicker(s.ticker);
+    const alloc = GSE.calcAllocation(s.ticker, memory.capitalMentioned, profile.riskProfile);
+    return `${signalBadge(s.signal)} My signal for <strong>${s.ticker}</strong> is <strong>${s.signal}</strong>.<br><br>
+      <strong>Why?</strong> RSI ${s.rsi} (${s.rsi<50?'healthy zone, room to run':'elevated — some risk'}), P/E ${s.pe}x, div yield ${s.divYield}%, fundamental score ${s.fundamentalScore}/100.<br><br>
+      ${s.signal==='BUY' && alloc
+        ? `<strong>For your ${rules.label} profile:</strong> at GHS ${memory.capitalMentioned.toLocaleString()} capital, put in <strong style="color:var(--emerald)">GHS ${alloc.amount.toFixed(2)}</strong> (${alloc.pct}%) — gets you <strong>~${alloc.shares} shares</strong>.`
+        : s.signal==='SELL'
+        ? `<strong>My take:</strong> I'd hold off. RSI suggests the stock is overbought. Wait for a pullback — ideally RSI dropping below 65 before re-entering.`
+        : `<strong>My take:</strong> Not a strong entry right now. Monitor it — if RSI drops below 50, revisit.`}`;
+  }
+
+  /* ── Top picks ───────────────────────────────────────────── */
+  if (/top\s+picks?|best\s+picks?|today.s?\s+(picks?|signals?)|best\s+stocks?\s+now/i.test(t)) {
+    const picks = GSE.getSignalStocks('BUY', profile.riskProfile).slice(0,5);
+    return `<strong>Top ${picks.length} BUY Picks — ${rules.label} Profile</strong><br><br>` +
+      picks.map((s,i) => `<strong>${i+1}. ${s.ticker}</strong> — GHS ${s.price.toFixed(2)} · RSI ${s.rsi} · Score ${s.fundamentalScore}/100 · Div ${s.divYield}%`).join('<br>') +
+      `<br><br><em>All filtered for RSI ≤ ${rules.maxRSI} to match your ${rules.label} profile.</em><br><br>Want a deep-dive on any of these?`;
+  }
+
+  /* ── Sell warnings ───────────────────────────────────────── */
+  if (/sell\s+warn|overbought|stocks?\s+to\s+avoid|\bavoid\b/i.test(t)) {
+    const warns = GSE.stocks.filter(s => s.signal==='SELL' || s.rsi>70).sort((a,b) => b.rsi-a.rsi);
+    return `<strong>Sell Warnings — Overbought / Risky Stocks:</strong><br><br>` +
+      warns.slice(0,5).map(s => `⚠ <strong>${s.ticker}</strong> — RSI ${s.rsi} · ${signalBadge(s.signal)} · GHS ${s.price.toFixed(2)}`).join('<br>') +
+      `<br><br>These stocks have elevated RSI and may be due for a pullback. I'd avoid new positions until RSI cools below 65.<br><br>Want me to find the opposite — stocks at low RSI with BUY signals?`;
+  }
+
+  /* ── Scan the market ─────────────────────────────────────── */
+  if (/scan\s+the\s+market|market\s+scan|full\s+scan|scan\s+all/i.test(t)) {
+    const buys = GSE.getSignalStocks('BUY', profile.riskProfile).slice(0,5);
+    return `<strong>Market Scan — Top Opportunities for ${rules.label} Profile:</strong><br><br>` +
+      buys.map(s => `● <strong>${s.ticker}</strong> — ${signalBadge(s.signal)} RSI ${s.rsi} · GHS ${s.price.toFixed(2)} · Score ${s.fundamentalScore}`).join('<br>') +
+      `<br><br>Open the <a href="scanner.html" style="color:var(--emerald)">Radar Scanner →</a> for the full visual sweep of all 31 stocks.<br><br>Want a detailed breakdown of any of these?`;
+  }
+
+  /* ── Macro / economy / BoG / interest rate / inflation ───── */
+  if (/macro|\beconomy\b|interest\s+rate|\binflation\b|bog\s+rate|monetary\s+policy/i.test(t)) {
+    const m = GSE.macro;
+    return `<strong>Ghana Macro Snapshot — ${new Date().toLocaleDateString('en-GH',{month:'long',year:'numeric'})}</strong><br><br>
+      <table><tr><th>Indicator</th><th>Value</th><th>Change</th></tr>
+      <tr><td>BoG Policy Rate</td><td>${m.bogRate}%</td><td>${m.bogChange>0?'+':''}${m.bogChange}%</td></tr>
+      <tr><td>USD / GHS</td><td>${m.usdGhs}</td><td>${m.usdGhsChange>0?'+':''}${m.usdGhsChange}%</td></tr>
+      <tr><td>Gold ($/oz)</td><td>$${m.goldOz.toLocaleString()}</td><td>${m.goldChange>0?'+':''}${m.goldChange}%</td></tr>
+      <tr><td>Cocoa ($/t)</td><td>$${m.cocoaTon.toLocaleString()}</td><td>${m.cocoaChange>0?'+':''}${m.cocoaChange}%</td></tr>
+      <tr><td>Inflation</td><td>${m.inflation}%</td><td>—</td></tr></table><br>
+      <strong>KOJO's view:</strong> High rates are keeping borrowing costs up — watch banking sector margins closely. Gold at these levels is a tailwind for mining stocks. A stable cedi reduces imported inflation, which is gradually positive for consumer staples.<br><br>
+      Want me to identify the stocks that benefit most from these conditions?`;
+  }
+
+  /* ── My risk profile ─────────────────────────────────────── */
+  if (/my\s+(risk\s*)?profile|risk\s+appetite|my\s+score|what\s+(type|kind)\s+of\s+investor/i.test(t)) {
+    return `<strong>Your Investor Profile: ${rules.label}</strong><br><br>
+      ${rules.description}<br><br>
+      • Max allocation per stock: <strong>${rules.maxAllocationPct}%</strong><br>
+      • RSI threshold: <strong>≤ ${rules.maxRSI}</strong><br>
+      • Capital on file: <strong>GHS ${memory.capitalMentioned.toLocaleString()}</strong><br>
+      • Your top picks: ${rules.topPicks.slice(0,4).map(t=>`<strong>${t}</strong>`).join(', ')}<br><br>
+      <a href="onboarding.html" style="color:var(--gold)">Retake your profile survey →</a><br><br>
+      Want me to show your personalised top picks right now?`;
+  }
+
+  /* ── Dividends ───────────────────────────────────────────── */
+  if (/dividend/i.test(t)) {
+    const divStocks = GSE.stocks.filter(s => s.divYield >= 2).sort((a,b) => b.divYield-a.divYield).slice(0,6);
+    return `<strong>Best Dividend Stocks on the GSE:</strong><br><br>` +
+      divStocks.map(s => `● <strong>${s.ticker}</strong> — ${s.divYield}% yield · RSI ${s.rsi} · ${signalBadge(s.signal)}`).join('<br>') +
+      `<br><br>Dividend stocks are ideal for ${rules.label.toLowerCase()} profiles — you collect income while waiting for price appreciation.<br><br>Want me to calculate how much dividend income you'd earn on your GHS ${memory.capitalMentioned.toLocaleString()}?`;
+  }
+
+  /* ── Compare ─────────────────────────────────────────────── */
+  const compareMatch = raw.match(/compare\s+([A-Z]{2,8})\s+(?:and|vs\.?|versus)\s+([A-Z]{2,8})/i);
+  if (compareMatch) {
+    const s1 = GSE.getStock(compareMatch[1].toUpperCase());
+    const s2 = GSE.getStock(compareMatch[2].toUpperCase());
+    if (!s1 || !s2) return `One or both tickers not found. Try: MTNGH, GCB, ACCESS, GOIL.`;
+    memory.addTicker(s1.ticker); memory.addTicker(s2.ticker);
+    const winner = s1.fundamentalScore >= s2.fundamentalScore ? s1 : s2;
+    const betterEntry = s1.rsi < s2.rsi ? s1 : s2;
+    return `<strong>${s1.ticker} vs ${s2.ticker}</strong><br><br>
+      <table><tr><th>Metric</th><th>${s1.ticker}</th><th>${s2.ticker}</th></tr>
+      <tr><td>Price</td><td>GHS ${s1.price.toFixed(2)}</td><td>GHS ${s2.price.toFixed(2)}</td></tr>
+      <tr><td>RSI</td><td>${s1.rsi}</td><td>${s2.rsi}</td></tr>
+      <tr><td>P/E</td><td>${s1.pe}x</td><td>${s2.pe}x</td></tr>
+      <tr><td>Div Yield</td><td>${s1.divYield}%</td><td>${s2.divYield}%</td></tr>
+      <tr><td>Signal</td><td>${s1.signal}</td><td>${s2.signal}</td></tr>
+      <tr><td>Score</td><td>${s1.fundamentalScore}/100</td><td>${s2.fundamentalScore}/100</td></tr></table><br>
+      <strong>My verdict:</strong> <strong>${winner.ticker}</strong> wins on fundamentals. <strong>${betterEntry.ticker}</strong> offers the better entry price right now based on RSI.<br><br>
+      Want a full deep-dive on either?`;
+  }
+
+  /* ── How much to invest? ─────────────────────────────────── */
+  const allocMatch = raw.match(/how\s+much\s+(?:should\s+i\s+invest|to\s+invest)\s+in\s+([A-Z]{2,8})/i)
+    || raw.match(/allocat[ei](?:on)?\s+(?:for\s+)?([A-Z]{2,8})/i);
+  if (allocMatch) {
+    const tk  = (allocMatch[1] || '').toUpperCase();
+    const s   = GSE.getStock(tk);
+    if (!s) return `That ticker isn't on my radar. Try: MTNGH, GCB, ACCESS, GOIL.`;
+    memory.addTicker(tk);
+    const alloc = GSE.calcAllocation(tk, memory.capitalMentioned, profile.riskProfile);
+    if (!alloc) return `Could not calculate allocation for ${tk}.`;
+    return `<strong>Portfolio Allocation: ${tk}</strong><br><br>
+      • Your capital: <strong>GHS ${alloc.capital.toLocaleString()}</strong><br>
+      • Risk profile: <strong>${rules.label}</strong><br>
+      • Suggested allocation: <strong>${alloc.pct}%</strong><br>
+      • Amount to invest: <strong style="color:var(--emerald)">GHS ${alloc.amount.toFixed(2)}</strong><br>
+      • Shares you can buy: <strong>~${alloc.shares} shares</strong> at GHS ${alloc.pricePerShare.toFixed(2)}/share<br><br>
+      <em>Never put more than ${rules.maxAllocationPct}% in one stock. Spread across 6–10 positions for ${rules.label.toLowerCase()} investors.</em><br><br>
+      Want me to build a full diversified portfolio with your GHS ${alloc.capital.toLocaleString()}?`;
+  }
+
+  /* ── Lowest risk stocks ──────────────────────────────────── */
+  if (/lowest\s+risk|safest?\s+stocks?|conservative\s+picks?/i.test(t)) {
+    const safe = GSE.stocks.filter(s => s.rsi < 55 && s.signal==='BUY' && s.divYield>=2).sort((a,b)=>a.rsi-b.rsi).slice(0,5);
+    return `<strong>Lowest-Risk BUY Opportunities:</strong><br><br>` +
+      safe.map(s => `● <strong>${s.ticker}</strong> — RSI ${s.rsi} · Div ${s.divYield}% · Score ${s.fundamentalScore}/100 · GHS ${s.price.toFixed(2)}`).join('<br>') +
+      `<br><br>These combine low RSI with dividend income — ideal for building a steady, lower-risk position.<br><br>Want allocation numbers for any of these based on your GHS ${memory.capitalMentioned.toLocaleString()}?`;
+  }
+
+  /* ── Help ────────────────────────────────────────────────── */
+  if (/^\bhelp\b$|what can you do|what do you know|how do i use/i.test(t)) {
+    return `Here's what I can do for you, ${firstName}:<br><br>
+      • <strong>Analyse [TICKER]</strong> — full signal report on any of 31 GSE stocks<br>
+      • <strong>Should I buy [TICKER]?</strong> — personalised buy/hold verdict<br>
+      • <strong>Top picks today</strong> — best current BUY opportunities<br>
+      • <strong>Sell warnings</strong> — overbought stocks to avoid<br>
+      • <strong>Scan the market</strong> — full market sweep<br>
+      • <strong>Compare GCB and MTNGH</strong> — side-by-side analysis<br>
+      • <strong>How much should I invest in ACCESS?</strong> — GHS allocation<br>
+      • <strong>Macro view</strong> — Ghana economic snapshot<br>
+      • <strong>What is RSI?</strong> — plain-English explanations<br>
+      • <strong>My risk profile</strong> — review your investor profile<br><br>
+      Where would you like to start?`;
+  }
+
+  /* ── Gibberish / test ────────────────────────────────────── */
+  if (/^[^a-z]{0,3}$|^(test|asdf|qwerty|123|\?{2,}|\!{2,})/i.test(t)) {
+    return `Testing me? Fair enough — I'm ready. Ask me anything about the 31 stocks on the Ghana Stock Exchange and let's see what I've got.`;
+  }
+
+  /* ── Fallback ────────────────────────────────────────────── */
+  return `I'm not quite sure what you mean — but I'm built for the Ghana Stock Exchange. Try:<br><br>
+    • A stock ticker: <strong>'Analyse MTNGH'</strong><br>
+    • A question: <strong>'Should I buy GCB?'</strong><br>
+    • A command: <strong>'Scan the market'</strong><br>
+    • Or just say <strong>'help'</strong> and I'll walk you through everything.`;
+}
+
+/* ── Chat message flow ─────────────────────────────────────── */
+const ANALYSIS_INTENTS = /analys|\bbuy\b|\bscan\b|picks|warn|invest|allocat|compare|dividend|overbought/i;
+
+function sendMessage() {
+  if (waiting) return;
+  const input = document.getElementById('chatInput');
+  const text  = input.value.trim();
+  if (!text) return;
+
+  const isAnalysis = ANALYSIS_INTENTS.test(text);
+  if (isAnalysis && !Usage.checkAndConsume()) return;
+
+  addMsg('user', text.replace(/</g,'&lt;'));
+  input.value = '';
+  input.style.height = 'auto';
+  waiting = true;
+  document.getElementById('sendBtn').disabled = true;
+
+  showTyping();
+  // Slight randomised delay — feels human
+  setTimeout(() => {
+    hideTyping();
+    const response = routeIntent(text);
+    addMsg('ai', response);
+    waiting = false;
+    document.getElementById('sendBtn').disabled = false;
+  }, 900 + Math.random() * 700);
+}
+
+function handleKey(e) {
+  if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); sendMessage(); }
+  e.target.style.height = 'auto';
+  e.target.style.height = Math.min(e.target.scrollHeight, 100) + 'px';
+}
+
+function setInput(text) {
+  document.getElementById('chatInput').value = text;
+  document.getElementById('chatInput').focus();
+}
+
+/* ── Welcome message ─────────────────────────────────────── */
+const _h = new Date().getHours();
+const _gr = _h<12?'morning':_h<17?'afternoon':'evening';
+addMsg('ai', `Good ${_gr}, <strong>${firstName}</strong>. I'm <strong>KOJO</strong>, your GSE AI analyst.<br><br>
+  Ask me to <strong>analyse any stock</strong>, <strong>scan the market</strong>,
+  get <strong>exact allocation amounts</strong>, or <strong>explain any concept</strong> in plain English.<br><br>
+  I know all 31 stocks on the Ghana Stock Exchange — and I'm here to help you make smarter moves.
+  What's on your mind?`);
+</script>
+</body>
+</html>

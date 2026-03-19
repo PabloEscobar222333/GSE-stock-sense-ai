@@ -1,0 +1,239 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Settings — StockSense AI</title>
+  <link rel="stylesheet" href="styles/main.css"/>
+  <style>
+    .settings-layout { display:grid; grid-template-columns:200px 1fr; gap:24px; max-width:900px; }
+    .settings-nav { display:flex; flex-direction:column; gap:4px; }
+    .sn-item { padding:10px 14px; border-radius:var(--radius-sm); font-size:14px; font-weight:500; color:var(--text-secondary); cursor:pointer; transition:all 0.2s ease; border:none; text-align:left; background:none; font-family:var(--font-body); }
+    .sn-item:hover  { color:var(--text-primary); background:rgba(255,255,255,0.04); }
+    .sn-item.active { color:var(--emerald); background:var(--emerald-glow); }
+    .settings-panel { display:none; }
+    .settings-panel.active { display:block; animation:fadeUp 0.35s ease; }
+    .settings-section { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:24px; margin-bottom:20px; }
+    .ss-title  { font-size:16px; font-weight:600; margin-bottom:16px; }
+    .ss-row    { display:flex; justify-content:space-between; align-items:center; padding:12px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+    .ss-row:last-child { border:none; }
+    .ss-label  { font-size:14px; }
+    .ss-sub    { font-size:12px; color:var(--text-muted); margin-top:2px; }
+    /* Toggle */
+    .toggle { position:relative; width:44px; height:24px; flex-shrink:0; }
+    .toggle input { opacity:0; width:0; height:0; position:absolute; }
+    .toggle-slider { position:absolute; inset:0; background:rgba(255,255,255,0.1); border-radius:12px; transition:0.3s ease; cursor:pointer; }
+    .toggle-slider:before { content:''; position:absolute; width:18px; height:18px; left:3px; top:3px; background:white; border-radius:50%; transition:0.3s ease; }
+    .toggle input:checked + .toggle-slider { background:var(--emerald); }
+    .toggle input:checked + .toggle-slider:before { transform:translateX(20px); }
+    /* Profile pic placeholder */
+    .profile-avatar { width:72px; height:72px; border-radius:50%; background:linear-gradient(135deg,var(--gold),var(--emerald)); display:flex; align-items:center; justify-content:center; font-size:28px; font-weight:700; color:var(--bg-deep); margin-bottom:20px; }
+    @media(max-width:768px) { .settings-layout{grid-template-columns:1fr;} .settings-nav{flex-direction:row;flex-wrap:wrap;} }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarHolder"></div>
+  <main class="main-content">
+    <div class="topbar">
+      <div class="topbar-left"><h2>Settings</h2><div class="topbar-sub">Manage your account and preferences</div></div>
+      <div class="topbar-right"><div class="usage-pill" data-usage-pill></div></div>
+    </div>
+    <div class="page-body">
+      <div class="settings-layout">
+        <!-- Settings nav -->
+        <div class="settings-nav">
+          <button class="sn-item active" onclick="showPanel('profile',this)">Profile</button>
+          <button class="sn-item" onclick="showPanel('preferences',this)">Preferences</button>
+          <button class="sn-item" onclick="showPanel('subscription',this)">Subscription</button>
+          <button class="sn-item" onclick="showPanel('data',this)">Data & Privacy</button>
+        </div>
+
+        <!-- Panels -->
+        <div id="panels">
+          <!-- PROFILE -->
+          <div class="settings-panel active" id="panelProfile">
+            <div class="settings-section">
+              <div class="ss-title">Account Profile</div>
+              <div class="profile-avatar" id="settingsAvatar">K</div>
+              <div class="form-group"><label class="form-label">Full Name</label><input class="form-input" id="settingsName" type="text"/></div>
+              <div class="form-group"><label class="form-label">Email Address</label><input class="form-input" id="settingsEmail" type="email"/></div>
+              <button class="btn btn-primary" onclick="saveProfile()" style="margin-top:4px">Save Changes</button>
+            </div>
+            <div class="settings-section">
+              <div class="ss-title">Investor Profile</div>
+              <div class="ss-row">
+                <div><div class="ss-label">Risk Profile</div><div class="ss-sub">Based on your onboarding survey</div></div>
+                <span class="badge" id="riskBadge" style="background:var(--gold-glow);color:var(--gold);border-color:rgba(201,168,76,0.3)">Moderate</span>
+              </div>
+              <div class="ss-row">
+                <div><div class="ss-label">Capital Configured</div><div class="ss-sub">Used for allocation calculations</div></div>
+                <span style="font-family:var(--font-data)" id="capitalDisplay">GHS 5,000</span>
+              </div>
+              <div class="ss-row">
+                <div><div class="ss-label">Onboarding</div></div>
+                <a href="onboarding.html" class="btn btn-secondary btn-sm">Retake Survey</a>
+              </div>
+            </div>
+          </div>
+
+          <!-- PREFERENCES -->
+          <div class="settings-panel" id="panelPreferences">
+            <div class="settings-section">
+              <div class="ss-title">Notifications</div>
+              <div class="ss-row">
+                <div><div class="ss-label">Signal Alerts</div><div class="ss-sub">Notify when BUY/SELL signals change</div></div>
+                <label class="toggle"><input type="checkbox" id="notifSignals" checked/><span class="toggle-slider"></span></label>
+              </div>
+              <div class="ss-row">
+                <div><div class="ss-label">RSI Threshold Alerts</div><div class="ss-sub">When RSI crosses your alert thresholds</div></div>
+                <label class="toggle"><input type="checkbox" id="notifRSI" checked/><span class="toggle-slider"></span></label>
+              </div>
+              <div class="ss-row">
+                <div><div class="ss-label">News Impact Notifications</div><div class="ss-sub">High-impact news affecting your watchlist</div></div>
+                <label class="toggle"><input type="checkbox" id="notifNews"/><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+            <div class="settings-section">
+              <div class="ss-title">Display</div>
+              <div class="ss-row">
+                <div><div class="ss-label">Show RSI on Signal Cards</div></div>
+                <label class="toggle"><input type="checkbox" id="showRSI" checked/><span class="toggle-slider"></span></label>
+              </div>
+              <div class="ss-row">
+                <div><div class="ss-label">Show Sparkline Charts</div></div>
+                <label class="toggle"><input type="checkbox" id="showCharts" checked/><span class="toggle-slider"></span></label>
+              </div>
+            </div>
+            <button class="btn btn-primary" onclick="savePreferences()">Save Preferences</button>
+          </div>
+
+          <!-- SUBSCRIPTION -->
+          <div class="settings-panel" id="panelSubscription">
+            <div class="settings-section">
+              <div class="ss-title">Current Plan</div>
+              <div id="subscriptionStatus"></div>
+            </div>
+            <div class="settings-section">
+              <div class="ss-title">Usage</div>
+              <div class="ss-row">
+                <div><div class="ss-label">Analyses Used</div></div>
+                <span style="font-family:var(--font-data)" id="usageDisplay">0 / 5</span>
+              </div>
+              <div class="ss-row">
+                <div><div class="ss-label">Reset Usage (Demo)</div><div class="ss-sub">Reset your free analysis counter for testing</div></div>
+                <button class="btn btn-secondary btn-sm" onclick="resetUsage()">Reset</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- DATA -->
+          <div class="settings-panel" id="panelData">
+            <div class="settings-section">
+              <div class="ss-title">Data & Privacy</div>
+              <div class="ss-row">
+                <div><div class="ss-label">Export My Data</div><div class="ss-sub">Download your profile, watchlist, and alerts as JSON</div></div>
+                <button class="btn btn-secondary btn-sm" onclick="exportData()">Export</button>
+              </div>
+              <div class="ss-row">
+                <div><div class="ss-label">Clear Watchlist</div><div class="ss-sub">Remove all stocks from your watchlist</div></div>
+                <button class="btn btn-sm" style="color:var(--amber);border:1px solid rgba(245,166,35,0.3);border-radius:var(--radius-pill);padding:7px 18px;font-size:13px" onclick="clearWatchlist()">Clear</button>
+              </div>
+              <div class="ss-row">
+                <div><div class="ss-label">Delete Account Data</div><div class="ss-sub">Removes all local data including profile and subscription</div></div>
+                <button class="btn btn-danger btn-sm" onclick="deleteAllData()">Delete All</button>
+              </div>
+            </div>
+            <div class="settings-section">
+              <div class="ss-title">Legal</div>
+              <div class="ss-row"><div class="ss-label"><a href="#" style="color:var(--emerald)">Privacy Policy</a></div></div>
+              <div class="ss-row"><div class="ss-label"><a href="#" style="color:var(--emerald)">Terms of Use</a></div></div>
+              <div class="ss-row"><div class="ss-label" style="color:var(--text-muted);font-size:13px">Not financial advice. For educational purposes only.</div></div>
+            </div>
+            <button class="btn btn-secondary" onclick="Auth.logout()" style="margin-top:8px">Log Out → Landing Page</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+  <div id="mobileNavHolder"></div>
+</div>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+if (!Auth.requireAuth()) throw new Error();
+initApp('settings.html');
+const user    = Auth.getSession() || {};
+const profile = Profile.get() || {};
+const rules   = GSE.profileRules[profile.riskProfile] || GSE.profileRules.moderate;
+
+// Populate fields
+document.getElementById('settingsName').value  = user.name  || '';
+document.getElementById('settingsEmail').value = user.email || '';
+document.getElementById('settingsAvatar').textContent = (user.name||'U')[0].toUpperCase();
+document.getElementById('riskBadge').textContent = rules.label;
+document.getElementById('capitalDisplay').textContent = 'GHS ' + (profile.capitalAmount||5000).toLocaleString();
+
+// Usage
+const usage = Usage.get();
+document.getElementById('usageDisplay').textContent = Usage.isPremium() ? 'Unlimited (Premium)' : `${usage.count} / ${usage.limit}`;
+
+// Subscription
+const sub = (() => { try { return JSON.parse(localStorage.getItem('gse_subscription')); } catch { return null; } })();
+document.getElementById('subscriptionStatus').innerHTML = sub && sub.isPremium
+  ? `<div class="ss-row"><div><div class="ss-label" style="color:var(--emerald)">Premium — ${sub.plan==='monthly'?'Monthly':'Yearly'} Plan</div><div class="ss-sub">Active since ${new Date(sub.startedAt).toLocaleDateString('en-GH')}</div></div><span class="badge badge-buy">Active</span></div>
+     <button class="btn btn-sm" style="margin-top:16px;color:var(--red);border:1px solid rgba(255,69,96,0.3);border-radius:var(--radius-pill);padding:7px 18px;font-size:13px" onclick="cancelSub()">Cancel Subscription</button>`
+  : `<div class="ss-row"><div><div class="ss-label">Free Tier</div><div class="ss-sub">${Math.max(0,5-usage.count)} analyses remaining</div></div><span class="badge badge-hold">Free</span></div>
+     <a href="pricing.html" class="btn btn-gold" style="margin-top:16px;display:inline-flex">Upgrade to Premium</a>`;
+
+function showPanel(id, btn) {
+  document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sn-item').forEach(b => b.classList.remove('active'));
+  document.getElementById('panel' + id.charAt(0).toUpperCase() + id.slice(1)).classList.add('active');
+  btn.classList.add('active');
+}
+
+function saveProfile() {
+  const name  = document.getElementById('settingsName').value.trim();
+  const email = document.getElementById('settingsEmail').value.trim();
+  const u = { ...user, name, email };
+  Auth.saveUser(u); Auth.login(u);
+  document.getElementById('settingsAvatar').textContent = (name||'U')[0].toUpperCase();
+  Toast.show('success', 'Profile saved successfully');
+}
+
+function savePreferences() { Toast.show('success', 'Preferences saved'); }
+
+function resetUsage() {
+  localStorage.setItem('gse_usage', JSON.stringify({count:0,limit:5}));
+  document.getElementById('usageDisplay').textContent = '0 / 5';
+  Usage.updateAllCounters();
+  Toast.show('success','Usage counter reset to 0');
+}
+
+function cancelSub() {
+  localStorage.removeItem('gse_subscription');
+  Toast.show('info','Subscription cancelled. Free tier restored.');
+  setTimeout(() => location.reload(), 1500);
+}
+
+function exportData() {
+  const data = { profile: Profile.get(), watchlist: JSON.parse(localStorage.getItem('gse_watchlist')||'[]'), alerts: JSON.parse(localStorage.getItem('gse_alerts')||'[]'), usage: Usage.get() };
+  const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
+  a.download = 'stocksense-data.json'; a.click();
+}
+
+function clearWatchlist() {
+  localStorage.removeItem('gse_watchlist');
+  Toast.show('success', 'Watchlist cleared');
+}
+
+function deleteAllData() {
+  if (!confirm('Delete all StockSense data? This cannot be undone.')) return;
+  ['gse_user','gse_session','gse_profile','gse_usage','gse_subscription','gse_watchlist','gse_alerts'].forEach(k => localStorage.removeItem(k));
+  window.location.href = 'login.html';
+}
+</script>
+</body>
+</html>

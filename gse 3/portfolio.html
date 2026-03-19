@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Portfolio Allocator — StockSense AI</title>
+  <link rel="stylesheet" href="styles/main.css"/>
+  <style>
+    .pa-header-card { background:linear-gradient(135deg,rgba(201,168,76,0.08),rgba(0,200,150,0.05)); border:1px solid rgba(201,168,76,0.2); border-radius:var(--radius-md); padding:24px 28px; margin-bottom:24px; display:flex; gap:24px; align-items:center; flex-wrap:wrap; }
+    .pa-capital-row { display:flex; gap:12px; align-items:flex-end; flex-wrap:wrap; }
+    .pa-alloc-grid  { display:grid; grid-template-columns:repeat(auto-fill,minmax(300px,1fr)); gap:16px; }
+    .pa-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:20px; }
+    .pa-card-top  { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:14px; }
+    .pa-ticker    { font-family:var(--font-data); font-size:18px; font-weight:700; }
+    .pa-name      { font-size:12px; color:var(--text-secondary); margin-bottom:8px; }
+    .pa-row       { display:flex; justify-content:space-between; padding:7px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:13px; }
+    .pa-row:last-child { border:none; }
+    .pa-row-lbl   { color:var(--text-secondary); }
+    .pa-row-val   { font-family:var(--font-data); }
+    .pa-bar-wrap  { margin-top:12px; }
+    .pa-bar-label { display:flex; justify-content:space-between; font-size:11px; color:var(--text-muted); margin-bottom:4px; }
+    .summary-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:20px; margin-bottom:24px; }
+    .summary-row  { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.04); font-size:14px; }
+    .summary-row:last-child { border:none; }
+    @media(max-width:768px) {
+      .pa-header-card { flex-direction:column; padding:16px; gap:16px; }
+      .pa-capital-row { flex-direction:column; gap:8px; }
+      .pa-capital-row .btn { width:100%; }
+      .pa-alloc-grid { grid-template-columns:1fr; }
+      .pa-card { padding:16px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarHolder"></div>
+  <main class="main-content">
+    <div class="topbar">
+      <div class="topbar-left"><h2>Portfolio Allocator</h2><div class="topbar-sub">Exact GHS amounts and share counts for your profile</div></div>
+      <div class="topbar-right"><div class="usage-pill" data-usage-pill></div></div>
+    </div>
+    <div class="page-body">
+      <!-- Capital input -->
+      <div class="pa-header-card">
+        <div style="flex:1;min-width:200px">
+          <div class="label" style="margin-bottom:8px">Your Capital Available</div>
+          <div class="pa-capital-row">
+            <div style="position:relative;flex:1;max-width:280px">
+              <span style="position:absolute;left:14px;top:50%;transform:translateY(-50%);font-family:var(--font-data);font-size:14px;color:var(--text-muted);pointer-events:none">GHS</span>
+              <input class="form-input" type="number" id="capitalInput" style="padding-left:56px" placeholder="5000" min="100" step="100" onchange="updateAllocations()"/>
+            </div>
+            <button class="btn btn-gold" onclick="updateAllocations()">Recalculate</button>
+          </div>
+        </div>
+        <div style="display:flex;gap:24px;flex-wrap:wrap">
+          <div style="text-align:center">
+            <div class="label" style="margin-bottom:4px">Risk Profile</div>
+            <div style="font-family:var(--font-display);font-size:18px;" id="profileLabel">Moderate</div>
+          </div>
+          <div style="text-align:center">
+            <div class="label" style="margin-bottom:4px">Max Per Stock</div>
+            <div style="font-family:var(--font-display);font-size:18px;color:var(--gold)" id="maxAllocPct">15%</div>
+          </div>
+          <div style="text-align:center">
+            <div class="label" style="margin-bottom:4px">Diversification</div>
+            <div style="font-family:var(--font-display);font-size:18px;color:var(--emerald)">6–10 Stocks</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Portfolio summary -->
+      <div class="summary-card" id="summaryCard" style="display:none">
+        <h3 style="margin-bottom:16px">Portfolio Summary</h3>
+        <div id="summaryRows"></div>
+      </div>
+
+      <!-- Allocation cards -->
+      <div class="widget-header">
+        <div class="widget-title">BUY Recommendations for Your Profile</div>
+        <div class="label" id="stockCount"></div>
+      </div>
+      <div class="pa-alloc-grid" id="allocGrid"></div>
+    </div>
+  </main>
+  <div id="mobileNavHolder"></div>
+</div>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+if (!Auth.requireAuth()) throw new Error();
+initApp('portfolio.html');
+const profile = Profile.get() || { riskProfile:'moderate', capitalAmount:5000 };
+const rules   = GSE.profileRules[profile.riskProfile] || GSE.profileRules.moderate;
+
+document.getElementById('capitalInput').value = profile.capitalAmount || 5000;
+document.getElementById('profileLabel').textContent = rules.label;
+document.getElementById('maxAllocPct').textContent  = rules.maxAllocationPct + '%';
+
+function updateAllocations() {
+  const capital = parseFloat(document.getElementById('capitalInput').value) || 5000;
+  // Save updated capital
+  const p = Profile.get() || {};
+  p.capitalAmount = capital; Profile.save(p);
+
+  const stocks = GSE.getSignalStocks('BUY', profile.riskProfile).slice(0, 8);
+  document.getElementById('stockCount').textContent = `${stocks.length} stocks`;
+
+  // Summary
+  const totalPct     = Math.min(stocks.length * rules.maxAllocationPct, 100);
+  const totalInvested = (totalPct / 100) * capital;
+  const cashReserve  = capital - totalInvested;
+  const summaryCard  = document.getElementById('summaryCard');
+  summaryCard.style.display = 'block';
+  document.getElementById('summaryRows').innerHTML = `
+    <div class="summary-row"><span class="pa-row-lbl">Total Capital</span><span class="pa-row-val">GHS ${capital.toLocaleString()}</span></div>
+    <div class="summary-row"><span class="pa-row-lbl">Recommended Stocks</span><span class="pa-row-val">${stocks.length}</span></div>
+    <div class="summary-row"><span class="pa-row-lbl">Total to Invest</span><span class="pa-row-val" style="color:var(--emerald)">GHS ${totalInvested.toFixed(2)}</span></div>
+    <div class="summary-row"><span class="pa-row-lbl">Cash Reserve</span><span class="pa-row-val" style="color:var(--amber)">GHS ${cashReserve.toFixed(2)}</span></div>
+    <div class="summary-row"><span class="pa-row-lbl">Portfolio Coverage</span><span class="pa-row-val">${totalPct.toFixed(0)}% of capital deployed</span></div>`;
+
+  // Allocation cards
+  document.getElementById('allocGrid').innerHTML = stocks.map(s => {
+    const alloc = GSE.calcAllocation(s.ticker, capital, profile.riskProfile);
+    if (!alloc) return '';
+    const scoreColor = s.fundamentalScore>=70?'var(--emerald)':s.fundamentalScore>=50?'var(--amber)':'var(--red)';
+    return `<div class="pa-card">
+      <div class="pa-card-top">
+        <div><div class="pa-ticker">${s.ticker}</div><div class="pa-name">${s.name}</div></div>
+        <span class="badge badge-buy">BUY</span>
+      </div>
+      <div class="pa-row"><span class="pa-row-lbl">Price</span><span class="pa-row-val">GHS ${s.price.toFixed(2)}</span></div>
+      <div class="pa-row"><span class="pa-row-lbl">Allocation</span><span class="pa-row-val" style="color:var(--gold)">${alloc.pct}%</span></div>
+      <div class="pa-row"><span class="pa-row-lbl">Amount to Invest</span><span class="pa-row-val" style="color:var(--emerald)">GHS ${alloc.amount.toFixed(2)}</span></div>
+      <div class="pa-row"><span class="pa-row-lbl">Shares to Buy</span><span class="pa-row-val">~${alloc.shares} shares</span></div>
+      <div class="pa-row"><span class="pa-row-lbl">RSI · P/E · Yield</span><span class="pa-row-val">${s.rsi} · ${s.pe}x · ${s.divYield}%</span></div>
+      <div class="pa-bar-wrap">
+        <div class="pa-bar-label"><span>Fundamental Score</span><span>${s.fundamentalScore}/100</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${s.fundamentalScore}%;background:${scoreColor}"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+updateAllocations();
+window.addEventListener('gseDataUpdated', updateAllocations);
+</script>
+</body>
+</html>

@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Watchlist — StockSense AI</title>
+  <link rel="stylesheet" href="styles/main.css"/>
+  <style>
+    .wl-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(280px,1fr)); gap:16px; }
+    .wl-card  { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-md); padding:18px 20px; transition:all 0.2s ease; }
+    .wl-card:hover { border-color:var(--border-hover); transform:translateY(-2px); }
+    .wl-card-top { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px; }
+    .wl-card-ticker { font-family:var(--font-data); font-size:20px; font-weight:700; }
+    .wl-card-name { font-size:12px; color:var(--text-secondary); margin-bottom:8px; }
+    .wl-card-price { font-family:var(--font-data); font-size:22px; font-weight:600; margin-bottom:4px; }
+    .wl-card-metrics { display:flex; gap:12px; flex-wrap:wrap; margin-top:10px; padding-top:10px; border-top:1px solid rgba(255,255,255,0.04); }
+    .wl-metric { font-size:12px; }
+    .wl-metric-label { color:var(--text-muted); font-size:10px; text-transform:uppercase; }
+    .wl-card-actions { display:flex; gap:8px; margin-top:12px; }
+    .add-form { display:flex; gap:10px; max-width:400px; margin-bottom:24px; }
+    .empty-wl { text-align:center; padding:60px; color:var(--text-muted); }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarHolder"></div>
+  <main class="main-content">
+    <div class="topbar">
+      <div class="topbar-left"><h2>Watchlist</h2><div class="topbar-sub">Track your favourite GSE stocks</div></div>
+      <div class="topbar-right"><div class="usage-pill" data-usage-pill></div></div>
+    </div>
+    <div class="page-body">
+      <div class="add-form">
+        <input class="form-input" type="text" id="tickerInput" placeholder="Add ticker (e.g. MTNGH, GCB)..."/>
+        <button class="btn btn-emerald" onclick="addTicker()" id="addBtn">Add Stock</button>
+      </div>
+      <div class="wl-grid" id="wlGrid"></div>
+    </div>
+  </main>
+  <div id="mobileNavHolder"></div>
+</div>
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+if (!Auth.requireAuth()) throw new Error();
+initApp('watchlist.html');
+let watchlist = [];
+try { watchlist = JSON.parse(localStorage.getItem('gse_watchlist')) || ['MTNGH','GCB','BOPP']; } catch { watchlist=['MTNGH','GCB','BOPP']; }
+
+function save() { localStorage.setItem('gse_watchlist', JSON.stringify(watchlist)); }
+
+function addTicker() {
+  const input = document.getElementById('tickerInput');
+  const t = input.value.trim().toUpperCase();
+  if (!t) return;
+  if (!GSE.getStock(t)) { Toast.show('error','Ticker not found on GSE'); return; }
+  if (watchlist.includes(t)) { Toast.show('warning','Already in watchlist'); input.value=''; return; }
+  watchlist.push(t); save(); renderGrid();
+  Toast.show('success', `${t} added`); input.value = '';
+}
+
+function removeTicker(t) {
+  watchlist = watchlist.filter(x => x !== t); save(); renderGrid();
+  Toast.show('info', `${t} removed from watchlist`);
+}
+
+function renderGrid() {
+  const grid = document.getElementById('wlGrid');
+  if (!watchlist.length) { grid.innerHTML=`<div class="empty-wl">Your watchlist is empty.<br>Add a stock ticker above to begin tracking.</div>`; return; }
+  grid.innerHTML = watchlist.map(t => {
+    const s = GSE.getStock(t); if (!s) return '';
+    const chgColor = s.change>0?'var(--emerald)':s.change<0?'var(--red)':'var(--text-muted)';
+    const chgStr   = s.change>0?`+${s.change}%`:`${s.change}%`;
+    const bc = s.signal==='BUY'?'badge-buy':s.signal==='SELL'?'badge-sell':'badge-hold';
+    return `<div class="wl-card">
+      <div class="wl-card-top">
+        <div><div class="wl-card-ticker">${s.ticker}</div><div class="wl-card-name">${s.name}</div></div>
+        <span class="badge ${bc}">${s.signal}</span>
+      </div>
+      <div class="wl-card-price">GHS ${s.price.toFixed(2)}</div>
+      <div style="font-family:var(--font-data);font-size:13px;color:${chgColor}">${chgStr} today</div>
+      <div class="wl-card-metrics">
+        <div class="wl-metric"><div class="wl-metric-label">RSI</div><div style="font-family:var(--font-data)">${s.rsi}</div></div>
+        <div class="wl-metric"><div class="wl-metric-label">P/E</div><div style="font-family:var(--font-data)">${s.pe}x</div></div>
+        <div class="wl-metric"><div class="wl-metric-label">Yield</div><div style="font-family:var(--font-data)">${s.divYield}%</div></div>
+        <div class="wl-metric"><div class="wl-metric-label">Score</div><div style="font-family:var(--font-data)">${s.fundamentalScore}</div></div>
+      </div>
+      <div class="wl-card-actions">
+        <a href="chat.html" class="btn btn-secondary btn-sm" onclick="sessionStorage.setItem('chatInit','Analyse ${s.ticker}')">Analyse</a>
+        <button class="btn btn-sm" style="color:var(--red);border:1px solid rgba(255,69,96,0.3);border-radius:var(--radius-pill);padding:7px 18px;font-size:13px" onclick="removeTicker('${s.ticker}')">Remove</button>
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+}
+
+document.getElementById('tickerInput').onkeydown = e => { if(e.key==='Enter') addTicker(); };
+renderGrid();
+window.addEventListener('gseDataUpdated', renderGrid);
+</script>
+</body>
+</html>

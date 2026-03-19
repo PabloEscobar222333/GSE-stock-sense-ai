@@ -1,0 +1,437 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Dashboard — StockSense AI</title>
+  <link rel="stylesheet" href="styles/main.css"/>
+  <style>
+    /* ── Dashboard-specific layout ─────────────────────── */
+    .dash-grid {
+      display: grid;
+      grid-template-columns: 1fr 360px;
+      gap: 20px;
+    }
+    .dash-left  { display:flex; flex-direction:column; gap:20px; }
+    .dash-right { display:flex; flex-direction:column; gap:20px; }
+
+    /* ── Signal card ───────────────────────────────────── */
+    .signal-feed { display:flex; flex-direction:column; gap:12px; }
+    .signal-card {
+      background:var(--bg-card); border:1px solid var(--border);
+      border-radius:var(--radius-md); padding:18px 20px;
+      display:grid; grid-template-columns:1fr auto;
+      gap:12px; align-items:start;
+      transition:border-color 0.2s ease, transform 0.2s ease;
+      cursor:pointer;
+    }
+    .signal-card:hover { border-color:var(--border-hover); transform:translateX(4px); }
+    .signal-card.buy-card  { border-left:3px solid var(--emerald); }
+    .signal-card.sell-card { border-left:3px solid var(--red); }
+    .signal-card.hold-card { border-left:3px solid var(--amber); }
+    .sc-ticker { font-family:var(--font-data); font-size:16px; font-weight:600; }
+    .sc-name   { font-size:13px; color:var(--text-secondary); margin-bottom:6px; }
+    .sc-meta   { display:flex; gap:16px; flex-wrap:wrap; margin-top:8px; }
+    .sc-meta-item { display:flex; flex-direction:column; gap:2px; }
+    .sc-meta-label { font-size:10px; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.06em; }
+    .sc-meta-val   { font-family:var(--font-data); font-size:13px; }
+    .sc-right { text-align:right; display:flex; flex-direction:column; gap:8px; align-items:flex-end; }
+    .sc-price { font-family:var(--font-data); font-size:20px; font-weight:600; }
+    .sc-change { font-size:13px; font-family:var(--font-data); }
+    .sc-chart { width:100px; height:36px; }
+    .sc-score-wrap { display:flex; align-items:center; gap:6px; }
+    .sc-score-bar { flex:1; height:4px; background:rgba(255,255,255,0.06); border-radius:2px; overflow:hidden; min-width:60px; }
+    .sc-score-fill { height:100%; border-radius:2px; }
+
+    /* ── Portfolio allocation widget ───────────────────── */
+    .alloc-widget {
+      background:var(--bg-card); border:1px solid var(--border);
+      border-radius:var(--radius-md); padding:20px;
+    }
+    .alloc-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:16px; }
+    .alloc-ticker { font-family:var(--font-data); font-size:18px; font-weight:600; color:var(--emerald); }
+    .alloc-row { display:flex; justify-content:space-between; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+    .alloc-row:last-child { border-bottom:none; }
+    .alloc-row-label { font-size:13px; color:var(--text-secondary); }
+    .alloc-row-val   { font-family:var(--font-data); font-size:14px; }
+    .alloc-warning { background:rgba(245,166,35,0.08); border:1px solid rgba(245,166,35,0.2); border-radius:var(--radius-sm); padding:10px 12px; font-size:12px; color:var(--amber); line-height:1.5; margin-top:14px; }
+
+    /* ── Macro snapshot ─────────────────────────────────── */
+    .macro-grid { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+    .macro-card { background:var(--bg-card); border:1px solid var(--border); border-radius:var(--radius-sm); padding:14px; }
+    .macro-label { font-size:11px; color:var(--text-muted); letter-spacing:0.06em; text-transform:uppercase; margin-bottom:4px; }
+    .macro-val   { font-family:var(--font-data); font-size:18px; font-weight:500; }
+    .macro-chg   { font-size:12px; font-family:var(--font-data); margin-top:2px; }
+
+    /* ── Watchlist widget ───────────────────────────────── */
+    .watchlist-row { display:flex; justify-content:space-between; align-items:center; padding:10px 0; border-bottom:1px solid rgba(255,255,255,0.04); }
+    .watchlist-row:last-child { border-bottom:none; }
+    .wl-ticker { font-family:var(--font-data); font-size:14px; font-weight:600; }
+    .wl-name   { font-size:12px; color:var(--text-muted); }
+    .wl-right  { display:flex; flex-direction:column; align-items:flex-end; gap:2px; }
+
+    /* ── Section headers ─────────────────────────────────── */
+    .widget-header {
+      display:flex; justify-content:space-between;
+      align-items:center; margin-bottom:16px;
+    }
+    .widget-title { font-size:16px; font-weight:600; }
+    .widget-action { font-size:13px; color:var(--emerald); cursor:pointer; }
+
+    /* ── Filter bar ──────────────────────────────────────── */
+    .filter-tabs { display:flex; gap:6px; margin-bottom:16px; flex-wrap:wrap; }
+    .filter-tab {
+      padding:6px 14px; border-radius:var(--radius-pill);
+      font-size:13px; font-weight:500; cursor:pointer;
+      background:var(--bg-card); border:1px solid var(--border);
+      color:var(--text-secondary); transition:all 0.2s ease;
+    }
+    .filter-tab.active { background:var(--emerald-glow); border-color:var(--emerald); color:var(--emerald); }
+    .filter-tab:hover  { border-color:var(--border-hover); color:var(--text-primary); }
+
+    /* ── Profile banner ──────────────────────────────────── */
+    .profile-banner {
+      background: linear-gradient(135deg, rgba(201,168,76,0.08), rgba(0,200,150,0.05));
+      border:1px solid rgba(201,168,76,0.2); border-radius:var(--radius-md);
+      padding:18px 24px; display:flex; justify-content:space-between;
+      align-items:center; gap:20px; flex-wrap:wrap;
+    }
+    .pb-left { display:flex; gap:16px; align-items:center; }
+    .pb-badge-big { width:48px;height:48px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:20px;font-weight:700;flex-shrink:0; }
+    .pb-title { font-size:16px; font-weight:600; margin-bottom:3px; }
+    .pb-sub   { font-size:13px; color:var(--text-secondary); }
+
+    @media(max-width:1024px) { .dash-grid { grid-template-columns:1fr; } }
+    @media(max-width:768px) {
+      .dash-grid { gap:12px; }
+      .macro-grid { grid-template-columns:1fr 1fr; }
+      .profile-banner { padding:14px 16px; gap:12px; flex-direction:column; align-items:flex-start; }
+      .pb-left { gap:12px; }
+      .pb-badge-big { width:40px; height:40px; font-size:16px; }
+      .pb-title { font-size:14px; }
+      .signal-card { padding:14px 16px; }
+      .sc-price { font-size:16px; }
+      .sc-chart { width:80px; }
+      .alloc-widget { padding:16px; }
+    }
+  </style>
+</head>
+<body>
+<div class="app-layout">
+  <div id="sidebarHolder"></div>
+
+  <main class="main-content">
+    <!-- Topbar -->
+    <div class="topbar" id="topbar">
+      <div class="topbar-left">
+        <h2 id="pageGreeting">Dashboard</h2>
+        <div class="topbar-sub" id="pageSubtitle">Your personalised market overview</div>
+      </div>
+      <div class="topbar-right">
+        <div class="usage-pill" data-usage-pill>3 of 5 free</div>
+        <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--emerald));display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--bg-deep);cursor:pointer;" id="topbarAvatar">K</div>
+      </div>
+    </div>
+
+    <div class="page-body">
+      <!-- Profile Banner -->
+      <div class="profile-banner fade-up" id="profileBanner">
+        <div class="pb-left">
+          <div class="pb-badge-big" id="pbBadge" style="background:var(--gold-glow);color:var(--gold)">M</div>
+          <div>
+            <div class="pb-title" id="pbTitle">Moderate Investor Profile</div>
+            <div class="pb-sub" id="pbSub">Capital: GHS 5,000 · Top sectors: Banking, Telecom</div>
+          </div>
+        </div>
+        <a href="onboarding.html" class="btn btn-secondary btn-sm">Retake Survey</a>
+      </div>
+
+      <div class="dash-grid" style="margin-top:20px">
+        <!-- ── LEFT COLUMN ── -->
+        <div class="dash-left">
+          <!-- Signal Feed -->
+          <div class="glass-card" style="padding:20px">
+            <div class="widget-header">
+              <div class="widget-title">Signal Feed</div>
+              <a href="scanner.html" class="widget-action">Open Radar →</a>
+            </div>
+            <div class="filter-tabs" id="filterTabs">
+              <div class="filter-tab active" onclick="filterSignals('ALL',this)">All Signals</div>
+              <div class="filter-tab" onclick="filterSignals('BUY',this)">BUY</div>
+              <div class="filter-tab" onclick="filterSignals('HOLD',this)">HOLD</div>
+              <div class="filter-tab" onclick="filterSignals('SELL',this)">SELL</div>
+            </div>
+            <div class="signal-feed" id="signalFeed">
+              <!-- Populated by JS -->
+            </div>
+          </div>
+        </div>
+
+        <!-- ── RIGHT COLUMN ── -->
+        <div class="dash-right">
+          <!-- Portfolio Allocation -->
+          <div class="alloc-widget fade-up stagger-1" id="allocWidget">
+            <div class="widget-header">
+              <div class="widget-title">Portfolio Allocation</div>
+              <a href="portfolio.html" class="widget-action">Full View →</a>
+            </div>
+            <div style="margin-bottom:12px">
+              <div class="alloc-header">
+                <div>
+                  <div class="label" style="margin-bottom:4px">Top BUY for your profile</div>
+                  <div class="alloc-ticker" id="allocTicker">MTNGH</div>
+                </div>
+                <span class="badge badge-buy">BUY</span>
+              </div>
+            </div>
+            <div id="allocDetails"><!-- Populated by JS --></div>
+            <div class="alloc-warning">Never put more than 10–15% in one stock. Diversify across 6–10 stocks for your profile.</div>
+          </div>
+
+          <!-- Macro Snapshot -->
+          <div class="glass-card" style="padding:20px">
+            <div class="widget-header">
+              <div class="widget-title">Ghana Macro Snapshot</div>
+            </div>
+            <div class="macro-grid" id="macroGrid"><!-- Populated by JS --></div>
+          </div>
+
+          <!-- Watchlist -->
+          <div class="glass-card" style="padding:20px">
+            <div class="widget-header">
+              <div class="widget-title">Watchlist</div>
+              <a href="watchlist.html" class="widget-action">Manage →</a>
+            </div>
+            <div id="watchlistRows"><!-- Populated by JS --></div>
+            <div style="margin-top:12px;display:flex;gap:8px">
+              <input class="form-input" type="text" id="watchlistInput" placeholder="Add ticker (e.g. GCB)" style="font-size:13px;padding:8px 12px"/>
+              <button class="btn btn-emerald btn-sm" onclick="addToWatchlist()">Add</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <div id="mobileNavHolder"></div>
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+/* ── Auth & Init ─────────────────────────────────────────────── */
+if (!Auth.requireAuth()) throw new Error('Not authenticated');
+
+const user    = Auth.getSession();
+const profile = Profile.get() || { riskProfile:'moderate', capitalAmount:5000, sectors:[] };
+const rules   = GSE.profileRules[profile.riskProfile] || GSE.profileRules.moderate;
+
+try { initApp('dashboard.html'); } catch(e) { console.warn('initApp:', e); }
+
+// Render all dynamic widgets immediately
+function runDashboardRenders() {
+  try { renderSignalFeed(); }           catch(e) { console.error('renderSignalFeed:', e); }
+  try { renderMacro(); }                catch(e) { console.warn('renderMacro:', e); }
+  try { renderAllocation(rules.topPicks[0]); } catch(e) { console.warn('renderAllocation:', e); }
+  try { loadWatchlist(); }              catch(e) { console.warn('loadWatchlist:', e); }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', runDashboardRenders);
+} else {
+  runDashboardRenders();
+}
+
+// React to live data updates
+window.addEventListener('gseDataUpdated', runDashboardRenders);
+
+
+/* ── Personalize UI ──────────────────────────────────────────── */
+(function personalizeUI() {
+  const h = new Date().getHours();
+  const greet = h<12?'Good morning':h<17?'Good afternoon':'Good evening';
+  document.getElementById('pageGreeting').textContent = greet + ', ' + (user.name||'Investor').split(' ')[0];
+  
+  // Profile banner
+  const letterMap = {conservative:'C',moderate:'M',aggressive:'A'};
+  const colorMap  = {conservative:{bg:'rgba(107,79,216,0.15)',c:'#6B4FD8'}, moderate:{bg:'var(--gold-glow)',c:'var(--gold)'}, aggressive:{bg:'var(--emerald-glow)',c:'var(--emerald)'}};
+  const pc = colorMap[profile.riskProfile] || colorMap.moderate;
+  document.getElementById('pbBadge').style.background = pc.bg;
+  document.getElementById('pbBadge').style.color = pc.c;
+  document.getElementById('pbBadge').textContent = letterMap[profile.riskProfile] || 'M';
+  document.getElementById('pbTitle').textContent = rules.label + ' Investor Profile';
+  document.getElementById('pbSub').textContent = `Capital: GHS ${(profile.capitalAmount||5000).toLocaleString()} · RSI limit: ${rules.maxRSI}`;
+})();
+
+/* ── Signal Feed ─────────────────────────────────────────────── */
+let activeFilter = 'ALL';
+
+function filterSignals(type, el) {
+  activeFilter = type;
+  document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+  el.classList.add('active');
+  renderSignalFeed();
+}
+
+function renderSignalFeed() {
+  const feed = document.getElementById('signalFeed');
+  if (!feed) return;
+
+  // Get all stocks, then filter by signal type — don't restrict by RSI on initial load
+  let stocks = GSE.stocks.slice(); // Full stock list
+  if (activeFilter !== 'ALL') {
+    stocks = stocks.filter(s => s.signal === activeFilter);
+  }
+  // Sort by fundamental score descending
+  stocks.sort((a, b) => b.fundamentalScore - a.fundamentalScore);
+
+  if (!stocks || stocks.length === 0) {
+    feed.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted)">No stocks match this filter.</div>`;
+    return;
+  }
+
+  feed.innerHTML = stocks.slice(0, 8).map(s => {
+    const cls       = s.signal === 'BUY' ? 'buy-card' : s.signal === 'SELL' ? 'sell-card' : 'hold-card';
+    const chgColor  = s.change > 0 ? 'var(--emerald)' : s.change < 0 ? 'var(--red)' : 'var(--text-muted)';
+    const signStr   = s.change > 0 ? `+${s.change}%` : s.change < 0 ? `${s.change}%` : '0.00%';
+    const badgeCls  = s.signal === 'BUY' ? 'badge-buy' : s.signal === 'SELL' ? 'badge-sell' : 'badge-hold';
+    const rsiColor  = s.rsi > 70 ? 'var(--red)' : s.rsi < 35 ? 'var(--emerald)' : 'var(--text-primary)';
+    const scoreColor = s.fundamentalScore >= 70 ? 'var(--emerald)' : s.fundamentalScore >= 50 ? 'var(--amber)' : 'var(--red)';
+
+    return `<div class="signal-card ${cls}" onclick="openSignalDetail('${s.ticker}')">
+      <div>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:4px">
+          <span class="sc-ticker">${s.ticker}</span>
+          <span class="badge ${badgeCls}">${s.signal}</span>
+        </div>
+        <div class="sc-name">${s.name}</div>
+        <div class="sc-meta">
+          <div class="sc-meta-item"><span class="sc-meta-label">RSI</span><span class="sc-meta-val" style="color:${rsiColor}">${s.rsi}</span></div>
+          <div class="sc-meta-item"><span class="sc-meta-label">P/E</span><span class="sc-meta-val">${s.pe}x</span></div>
+          <div class="sc-meta-item"><span class="sc-meta-label">Div Yield</span><span class="sc-meta-val">${s.divYield}%</span></div>
+          <div class="sc-meta-item"><span class="sc-meta-label">Score</span>
+            <div class="sc-score-wrap"><div class="sc-score-bar"><div class="sc-score-fill" style="width:${s.fundamentalScore}%;background:${scoreColor}"></div></div><span class="sc-meta-val">${s.fundamentalScore}</span></div>
+          </div>
+        </div>
+      </div>
+      <div class="sc-right">
+        <div class="sc-price">GHS ${s.price.toFixed(2)}</div>
+        <div class="sc-change" style="color:${chgColor}">${signStr}</div>
+        <canvas class="sc-chart" id="chart-${s.ticker}" width="100" height="36"></canvas>
+      </div>
+    </div>`;
+  }).join('');
+
+  // Draw sparklines after DOM is updated
+  requestAnimationFrame(() => {
+    stocks.slice(0, 8).forEach(s => {
+      const cv = document.getElementById(`chart-${s.ticker}`);
+      if (cv && typeof drawSparkline === 'function' && typeof mockPriceHistory === 'function') {
+        const hist = mockPriceHistory(s.price, 20, s.signal);
+        const col  = s.signal === 'BUY' ? '#00C896' : s.signal === 'SELL' ? '#FF4560' : '#F5A623';
+        drawSparkline(cv, hist, col);
+      }
+    });
+  });
+}
+
+/* ── Signal Detail (clicks on card prompt analysis) ─────────── */
+function openSignalDetail(ticker) {
+  if (!Usage.checkAndConsume()) return;
+  const s = GSE.getStock(ticker);
+  if (!s) return;
+  Toast.show('success', `Analysing ${ticker}... Signal: ${s.signal}. RSI ${s.rsi}. Score ${s.fundamentalScore}/100.`);
+  // Update allocation widget for this stock
+  renderAllocation(ticker);
+}
+
+/* ── Portfolio Allocation Widget ─────────────────────────────── */
+function renderAllocation(ticker) {
+  const alloc = GSE.calcAllocation(ticker, profile.capitalAmount || 5000, profile.riskProfile);
+  if (!alloc) return;
+  document.getElementById('allocTicker').textContent = ticker;
+  document.getElementById('allocDetails').innerHTML = `
+    <div class="alloc-row"><span class="alloc-row-label">Your Capital</span><span class="alloc-row-val">GHS ${alloc.capital.toLocaleString()}</span></div>
+    <div class="alloc-row"><span class="alloc-row-label">Risk Profile</span><span class="alloc-row-val">${rules.label}</span></div>
+    <div class="alloc-row"><span class="alloc-row-label">Suggested Allocation</span><span class="alloc-row-val" style="color:var(--gold)">${alloc.pct}%</span></div>
+    <div class="alloc-row"><span class="alloc-row-label">Amount to Invest</span><span class="alloc-row-val" style="color:var(--emerald)">GHS ${alloc.amount.toFixed(2)}</span></div>
+    <div class="alloc-row"><span class="alloc-row-label">Shares You Can Buy</span><span class="alloc-row-val">~${alloc.shares} shares</span></div>
+    <div class="alloc-row"><span class="alloc-row-label">At Price</span><span class="alloc-row-val">GHS ${alloc.pricePerShare.toFixed(2)}/share</span></div>`;
+}
+
+/* ── Macro Snapshot ──────────────────────────────────────────── */
+function renderMacro() {
+  const m = GSE.macro;
+  const items = [
+    { label:'BoG Policy Rate', val:m.bogRate+'%', chg:m.bogChange, suffix:'%' },
+    { label:'USD / GHS', val:m.usdGhs.toFixed(2), chg:m.usdGhsChange, suffix:'%' },
+    { label:'Gold ($/oz)', val:'$'+m.goldOz.toLocaleString(), chg:m.goldChange, suffix:'%' },
+    { label:'Cocoa ($/ton)', val:'$'+m.cocoaTon.toLocaleString(), chg:m.cocoaChange, suffix:'%' },
+  ];
+  document.getElementById('macroGrid').innerHTML = items.map(item => {
+    const chgColor = item.chg>0?'var(--emerald)':item.chg<0?'var(--red)':'var(--text-muted)';
+    const chgStr   = item.chg>0?`+${item.chg}${item.suffix}`:`${item.chg}${item.suffix}`;
+    return `<div class="macro-card">
+      <div class="macro-label">${item.label}</div>
+      <div class="macro-val">${item.val}</div>
+      <div class="macro-chg" style="color:${chgColor}">${chgStr}</div>
+    </div>`;
+  }).join('');
+}
+
+/* ── Watchlist ───────────────────────────────────────────────── */
+let watchlist = [];
+
+function loadWatchlist() {
+  try { watchlist = JSON.parse(localStorage.getItem('gse_watchlist')) || ['MTNGH','GCB','BOPP']; }
+  catch { watchlist = ['MTNGH','GCB','BOPP']; }
+  renderWatchlist();
+}
+
+function saveWatchlist() { localStorage.setItem('gse_watchlist', JSON.stringify(watchlist)); }
+
+function addToWatchlist() {
+  const input = document.getElementById('watchlistInput');
+  const ticker = input.value.trim().toUpperCase();
+  const stock = GSE.getStock(ticker);
+  if (!stock) { Toast.show('error','Ticker not found on GSE. Try: MTNGH, GCB, GOIL'); return; }
+  if (watchlist.includes(ticker)) { Toast.show('warning','Already in watchlist'); input.value=''; return; }
+  watchlist.push(ticker);
+  saveWatchlist(); renderWatchlist();
+  Toast.show('success', `${ticker} added to watchlist`);
+  input.value = '';
+}
+
+function removeFromWatchlist(ticker) {
+  watchlist = watchlist.filter(t => t !== ticker);
+  saveWatchlist(); renderWatchlist();
+}
+
+function renderWatchlist() {
+  const el = document.getElementById('watchlistRows');
+  if (watchlist.length === 0) { el.innerHTML = `<div style="color:var(--text-muted);font-size:13px;padding:10px 0">Your watchlist is empty. Add stocks below.</div>`; return; }
+  el.innerHTML = watchlist.map(ticker => {
+    const s = GSE.getStock(ticker);
+    if (!s) return '';
+    const chgColor = s.change>0?'var(--emerald)':s.change<0?'var(--red)':'var(--text-muted)';
+    const chgStr   = s.change>0?`+${s.change}%`:`${s.change}%`;
+    const badgeCls = s.signal==='BUY'?'badge-buy':s.signal==='SELL'?'badge-sell':'badge-hold';
+    return `<div class="watchlist-row">
+      <div><div class="wl-ticker">${ticker}</div><div class="wl-name">${s.name.slice(0,22)}</div></div>
+      <div class="wl-right">
+        <span class="badge ${badgeCls}" style="font-size:10px;padding:2px 8px">${s.signal}</span>
+        <div style="font-family:var(--font-data);font-size:13px">GHS ${s.price.toFixed(2)}</div>
+        <div style="font-size:12px;font-family:var(--font-data);color:${chgColor}">${chgStr}</div>
+      </div>
+    </div>`;
+  }).filter(Boolean).join('');
+}
+
+/* ── Init ───────────────────────────────────────────────────── */
+// Render calls now happen in runDashboardRenders() above
+
+
+
+</script>
+</body>
+</html>

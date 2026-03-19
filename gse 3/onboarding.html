@@ -1,0 +1,373 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Set Up Your Profile — StockSense AI</title>
+  <link rel="stylesheet" href="styles/main.css"/>
+  <style>
+    body { min-height:100vh; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:20px; background:var(--bg-deep); }
+
+    /* Top logo */
+    .ob-brand { display:flex;align-items:center;gap:10px;position:fixed;top:24px;left:32px;z-index:10; }
+    .ob-brand-text { font-family:var(--font-display);font-size:18px;font-weight:600; background:linear-gradient(135deg,var(--text-primary),var(--gold)); -webkit-background-clip:text; -webkit-text-fill-color:transparent; }
+
+    /* Progress */
+    .ob-progress-wrap { position:fixed;top:0;left:0;right:0;height:3px;background:rgba(255,255,255,0.06);z-index:100; }
+    .ob-progress-fill { height:100%;background:linear-gradient(90deg,var(--gold),var(--emerald));transition:width 0.5s ease; }
+    .ob-progress-label { position:fixed;top:10px;right:24px;font-size:12px;color:var(--text-muted);z-index:100; }
+
+    /* Stage container */
+    .ob-stage { width:100%;max-width:640px;text-align:center; }
+
+    .ob-step { display:none; animation:fadeUp 0.45s ease both; }
+    .ob-step.active { display:block; }
+
+    /* Welcome */
+    .ob-welcome-icon { width:80px;height:80px;margin:0 auto 28px;background:var(--gold-glow);border:1px solid rgba(201,168,76,0.3);border-radius:50%;display:flex;align-items:center;justify-content:center; }
+    .ob-welcome-title { font-size:32px;margin-bottom:14px; }
+    .ob-welcome-sub { font-size:16px;color:var(--text-secondary);line-height:1.7;margin-bottom:36px; }
+
+    /* Question */
+    .ob-question { font-size:26px;font-family:var(--font-display);font-weight:500;margin-bottom:36px;line-height:1.3; }
+
+    /* Option cards */
+    .ob-options { display:flex;flex-direction:column;gap:12px;margin-bottom:32px; }
+    .ob-option {
+      background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--radius-md);
+      padding:16px 20px;text-align:left;cursor:pointer;transition:all 0.2s ease;
+      display:flex;align-items:flex-start;gap:14px;
+    }
+    .ob-option:hover { border-color:var(--border-hover);background:rgba(255,255,255,0.06);transform:translateX(4px); }
+    .ob-option.selected { border-color:var(--emerald);background:var(--emerald-glow); }
+    .ob-option.selected .ob-opt-letter { background:var(--emerald);color:var(--bg-deep); }
+    .ob-opt-letter {
+      width:28px;height:28px;border-radius:6px;background:rgba(255,255,255,0.06);border:1px solid var(--border);
+      display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;flex-shrink:0;
+      transition:all 0.2s ease;
+    }
+    .ob-opt-text { font-size:15px;line-height:1.4; }
+
+    /* Multi-select sector chips */
+    .ob-sectors { display:flex;flex-wrap:wrap;gap:10px;justify-content:center;margin-bottom:32px; }
+    .ob-sector {
+      padding:10px 18px;background:var(--bg-card);border:1.5px solid var(--border);border-radius:var(--radius-pill);
+      font-size:14px;cursor:pointer;transition:all 0.2s ease;
+    }
+    .ob-sector:hover { border-color:var(--border-hover); }
+    .ob-sector.selected { border-color:var(--gold);background:var(--gold-glow);color:var(--gold); }
+    .ob-sector-hint { font-size:13px;color:var(--text-muted);margin-bottom:20px; }
+
+    /* Capital input */
+    .ob-capital-input { position:relative;margin-bottom:24px; }
+    .ob-capital-input .currency-prefix {
+      position:absolute;left:16px;top:50%;transform:translateY(-50%);font-family:var(--font-data);font-size:14px;color:var(--text-muted);pointer-events:none;
+    }
+    .ob-capital-input input { padding-left:60px; }
+
+    /* Result */
+    .ob-result-card {
+      background:var(--bg-card);border:1px solid var(--border);border-radius:var(--radius-lg);padding:36px;margin-bottom:28px;
+      animation:fadeUp 0.5s ease;
+    }
+    .ob-profile-badge { display:inline-block;padding:6px 18px;border-radius:var(--radius-pill);font-size:12px;font-weight:700;letter-spacing:0.1em;text-transform:uppercase;margin-bottom:20px; }
+    .ob-profile-badge.conservative { background:rgba(107,79,216,0.15);color:var(--purple);border:1px solid rgba(107,79,216,0.3); }
+    .ob-profile-badge.moderate { background:var(--gold-glow);color:var(--gold);border:1px solid rgba(201,168,76,0.3); }
+    .ob-profile-badge.aggressive { background:var(--emerald-glow);color:var(--emerald);border:1px solid rgba(0,200,150,0.3); }
+    .ob-profile-title { font-size:24px;margin-bottom:12px; }
+    .ob-profile-desc { font-size:15px;color:var(--text-secondary);line-height:1.7; }
+    .ob-top-picks { display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:20px; }
+    .ob-top-pick-tag { padding:5px 12px;background:rgba(0,200,150,0.08);border:1px solid rgba(0,200,150,0.2);border-radius:var(--radius-pill);font-family:var(--font-data);font-size:12px;color:var(--emerald); }
+
+    /* Loader */
+    .ob-loader { display:flex;flex-direction:column;align-items:center;gap:20px; }
+    .ob-loader-ring { width:64px;height:64px;border:3px solid rgba(255,255,255,0.08);border-top-color:var(--emerald);border-radius:50%;animation:spin 0.8s linear infinite; }
+    .ob-loader-text { font-size:16px;color:var(--text-secondary); }
+
+    /* Nav buttons */
+    .ob-nav { display:flex;gap:12px;justify-content:center; }
+    .ob-back { color:var(--text-muted);font-size:14px;background:none;border:none;cursor:pointer;display:flex;align-items:center;gap:6px;transition:color 0.2s; }
+    .ob-back:hover { color:var(--text-primary); }
+
+    @media(max-width:640px) {
+      .ob-question { font-size:20px; }
+      .ob-welcome-title { font-size:24px; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- Brand -->
+<div class="ob-brand">
+  <svg width="26" height="26" viewBox="0 0 34 34" fill="none">
+    <path d="M17 2L31 9.5V24.5L17 32L3 24.5V9.5L17 2Z" stroke="#C9A84C" stroke-width="1.5" fill="rgba(201,168,76,0.08)"/>
+    <circle cx="17" cy="17" r="2.5" fill="#C9A84C"/>
+  </svg>
+  <span class="ob-brand-text">StockSense</span>
+</div>
+
+<!-- Progress bar -->
+<div class="ob-progress-wrap">
+  <div class="ob-progress-fill" id="progressFill" style="width:0%"></div>
+</div>
+<div class="ob-progress-label" id="progressLabel">Step 1 of 7</div>
+
+<!-- Stage -->
+<div class="ob-stage" id="obStage">
+
+  <!-- STEP 0: Welcome -->
+  <div class="ob-step active" data-step="0">
+    <div class="ob-welcome-icon">
+      <svg width="36" height="36" viewBox="0 0 34 34" fill="none">
+        <path d="M17 2L31 9.5V24.5L17 32L3 24.5V9.5L17 2Z" stroke="#C9A84C" stroke-width="1.5" fill="rgba(201,168,76,0.12)"/>
+        <circle cx="17" cy="17" r="2.5" fill="#C9A84C"/>
+      </svg>
+    </div>
+    <h1 class="ob-welcome-title">Welcome, <span id="welcomeName">Investor</span>.</h1>
+    <p class="ob-welcome-sub">Before we start, let us understand your investor profile so we can give you the most relevant signals, personalised to your goals and risk appetite.</p>
+    <button class="btn btn-primary" style="font-size:16px;padding:16px 44px" onclick="nextStep()" id="beginBtn">Let's Begin →</button>
+  </div>
+
+  <!-- STEP 1: Experience -->
+  <div class="ob-step" data-step="1">
+    <p class="ob-question">How long have you been investing in stocks?</p>
+    <div class="ob-options" id="opts1">
+      <div class="ob-option" data-value="A" onclick="selectOption(1,'A',this)"><span class="ob-opt-letter">A</span><span class="ob-opt-text">I'm just starting out</span></div>
+      <div class="ob-option" data-value="B" onclick="selectOption(1,'B',this)"><span class="ob-opt-letter">B</span><span class="ob-opt-text">Less than 1 year</span></div>
+      <div class="ob-option" data-value="C" onclick="selectOption(1,'C',this)"><span class="ob-opt-letter">C</span><span class="ob-opt-text">1–3 years</span></div>
+      <div class="ob-option" data-value="D" onclick="selectOption(1,'D',this)"><span class="ob-opt-letter">D</span><span class="ob-opt-text">More than 3 years</span></div>
+    </div>
+    <div class="ob-nav">
+      <button class="ob-back" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()" id="next1">Continue →</button>
+    </div>
+  </div>
+
+  <!-- STEP 2: Risk Appetite -->
+  <div class="ob-step" data-step="2">
+    <p class="ob-question">If your investment dropped 20% in value, what would you do?</p>
+    <div class="ob-options" id="opts2">
+      <div class="ob-option" data-value="A" onclick="selectOption(2,'A',this)"><span class="ob-opt-letter">A</span><span class="ob-opt-text">Sell immediately — I can't afford to lose</span></div>
+      <div class="ob-option" data-value="B" onclick="selectOption(2,'B',this)"><span class="ob-opt-letter">B</span><span class="ob-opt-text">Worry a lot but hold and wait</span></div>
+      <div class="ob-option" data-value="C" onclick="selectOption(2,'C',this)"><span class="ob-opt-letter">C</span><span class="ob-opt-text">Hold calmly — markets recover</span></div>
+      <div class="ob-option" data-value="D" onclick="selectOption(2,'D',this)"><span class="ob-opt-letter">D</span><span class="ob-opt-text">Buy more — this is an opportunity</span></div>
+    </div>
+    <div class="ob-nav">
+      <button class="ob-back" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()" id="next2">Continue →</button>
+    </div>
+  </div>
+
+  <!-- STEP 3: Goal -->
+  <div class="ob-step" data-step="3">
+    <p class="ob-question">What is your primary goal for investing?</p>
+    <div class="ob-options" id="opts3">
+      <div class="ob-option" data-value="A" onclick="selectOption(3,'A',this)"><span class="ob-opt-letter">A</span><span class="ob-opt-text">Protect my money from inflation</span></div>
+      <div class="ob-option" data-value="B" onclick="selectOption(3,'B',this)"><span class="ob-opt-letter">B</span><span class="ob-opt-text">Steady income (dividends)</span></div>
+      <div class="ob-option" data-value="C" onclick="selectOption(3,'C',this)"><span class="ob-opt-letter">C</span><span class="ob-opt-text">Grow wealth over 5–10 years</span></div>
+      <div class="ob-option" data-value="D" onclick="selectOption(3,'D',this)"><span class="ob-opt-letter">D</span><span class="ob-opt-text">Maximise short-term gains</span></div>
+    </div>
+    <div class="ob-nav">
+      <button class="ob-back" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()" id="next3">Continue →</button>
+    </div>
+  </div>
+
+  <!-- STEP 4: Time Horizon -->
+  <div class="ob-step" data-step="4">
+    <p class="ob-question">How long are you willing to keep your money invested?</p>
+    <div class="ob-options" id="opts4">
+      <div class="ob-option" data-value="A" onclick="selectOption(4,'A',this)"><span class="ob-opt-letter">A</span><span class="ob-opt-text">Less than 6 months</span></div>
+      <div class="ob-option" data-value="B" onclick="selectOption(4,'B',this)"><span class="ob-opt-letter">B</span><span class="ob-opt-text">6 months to 2 years</span></div>
+      <div class="ob-option" data-value="C" onclick="selectOption(4,'C',this)"><span class="ob-opt-letter">C</span><span class="ob-opt-text">2–5 years</span></div>
+      <div class="ob-option" data-value="D" onclick="selectOption(4,'D',this)"><span class="ob-opt-letter">D</span><span class="ob-opt-text">More than 5 years</span></div>
+    </div>
+    <div class="ob-nav">
+      <button class="ob-back" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()" id="next4">Continue →</button>
+    </div>
+  </div>
+
+  <!-- STEP 5: Capital -->
+  <div class="ob-step" data-step="5">
+    <p class="ob-question">How much capital do you have available to invest right now?</p>
+    <div class="ob-options" id="opts5">
+      <div class="ob-option" data-value="A" onclick="selectOption(5,'A',this)"><span class="ob-opt-letter">A</span><span class="ob-opt-text">Under GHS 1,000</span></div>
+      <div class="ob-option" data-value="B" onclick="selectOption(5,'B',this)"><span class="ob-opt-letter">B</span><span class="ob-opt-text">GHS 1,000 – GHS 5,000</span></div>
+      <div class="ob-option" data-value="C" onclick="selectOption(5,'C',this)"><span class="ob-opt-letter">C</span><span class="ob-opt-text">GHS 5,000 – GHS 20,000</span></div>
+      <div class="ob-option" data-value="D" onclick="selectOption(5,'D',this)"><span class="ob-opt-letter">D</span><span class="ob-opt-text">Above GHS 20,000</span></div>
+    </div>
+    <div class="ob-capital-input">
+      <span class="currency-prefix">GHS</span>
+      <input class="form-input" type="number" id="capitalAmount" placeholder="Enter exact amount (optional)" min="0" step="100"/>
+    </div>
+    <div class="ob-nav">
+      <button class="ob-back" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="nextStep()" id="next5">Continue →</button>
+    </div>
+  </div>
+
+  <!-- STEP 6: Sectors (multi-select) -->
+  <div class="ob-step" data-step="6">
+    <p class="ob-question">Which sectors interest you most?</p>
+    <p class="ob-sector-hint">Select up to 3 sectors</p>
+    <div class="ob-sectors" id="sectorGrid">
+      <div class="ob-sector" onclick="toggleSector(this,'Banking & Finance')">Banking & Finance</div>
+      <div class="ob-sector" onclick="toggleSector(this,'Insurance')">Insurance</div>
+      <div class="ob-sector" onclick="toggleSector(this,'Telecom')">Telecom</div>
+      <div class="ob-sector" onclick="toggleSector(this,'Energy & Oil')">Energy & Oil</div>
+      <div class="ob-sector" onclick="toggleSector(this,'Consumer Goods')">Consumer Goods</div>
+      <div class="ob-sector" onclick="toggleSector(this,'Agriculture')">Agriculture</div>
+      <div class="ob-sector" onclick="toggleSector(this,'Technology & Fintech')">Technology & Fintech</div>
+      <div class="ob-sector" onclick="toggleSector(this,'Mining & Resources')">Mining & Resources</div>
+    </div>
+    <div class="ob-nav">
+      <button class="ob-back" onclick="prevStep()">← Back</button>
+      <button class="btn btn-primary" onclick="computeAndShowResult()" id="next6">See My Profile →</button>
+    </div>
+  </div>
+
+  <!-- STEP 7: Loading -->
+  <div class="ob-step" data-step="7">
+    <div class="ob-loader">
+      <div class="ob-loader-ring"></div>
+      <div class="ob-loader-text" id="loaderText">Analysing your investor profile...</div>
+    </div>
+  </div>
+
+  <!-- STEP 8: Result -->
+  <div class="ob-step" data-step="8">
+    <div class="ob-result-card">
+      <span class="ob-profile-badge" id="resultBadge">MODERATE INVESTOR</span>
+      <h2 class="ob-profile-title" id="resultTitle">Your Risk Profile: Moderate</h2>
+      <p class="ob-profile-desc" id="resultDesc"></p>
+      <div class="ob-top-picks" id="resultPicks"></div>
+    </div>
+    <button class="btn btn-primary" style="font-size:16px;padding:16px 44px" onclick="goDashboard()" id="dashboardBtn">View My Dashboard →</button>
+  </div>
+
+</div>
+
+<script src="js/data.js"></script>
+<script src="js/app.js"></script>
+<script>
+/* Auth guard */
+if (!Auth.isLoggedIn()) window.location.href = 'login.html';
+
+const user = Auth.getSession() || {};
+document.getElementById('welcomeName').textContent = user.name ? user.name.split(' ')[0] : 'Investor';
+
+let currentStep = 0;
+const TOTAL_STEPS = 7;
+const answers = {}; // step -> 'A'|'B'|'C'|'D'
+let selectedSectors = [];
+let capitalAmount = null;
+
+function updateProgress(step) {
+  const pct = step === 0 ? 0 : Math.round((step / TOTAL_STEPS) * 100);
+  document.getElementById('progressFill').style.width = pct + '%';
+  document.getElementById('progressLabel').textContent = step === 0 ? 'Step 1 of 7' : `Step ${step} of ${TOTAL_STEPS}`;
+}
+
+function goToStep(n) {
+  document.querySelectorAll('.ob-step').forEach(el => el.classList.remove('active'));
+  document.querySelector(`.ob-step[data-step="${n}"]`).classList.add('active');
+  currentStep = n;
+  updateProgress(n);
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function nextStep() {
+  // Validate current step has answer
+  if (currentStep >= 1 && currentStep <= 5) {
+    if (!answers[currentStep]) {
+      // Flash options
+      document.querySelectorAll(`#opts${currentStep} .ob-option`).forEach(o => {
+        o.style.borderColor = 'rgba(255,69,96,0.4)';
+        setTimeout(()=>o.style.borderColor='',800);
+      });
+      return;
+    }
+  }
+  goToStep(currentStep + 1);
+}
+
+function prevStep() { if (currentStep > 0) goToStep(currentStep - 1); }
+
+function selectOption(step, val, el) {
+  document.querySelectorAll(`#opts${step} .ob-option`).forEach(o => o.classList.remove('selected'));
+  el.classList.add('selected');
+  answers[step] = val;
+}
+
+function toggleSector(el, name) {
+  if (el.classList.contains('selected')) {
+    el.classList.remove('selected');
+    selectedSectors = selectedSectors.filter(s => s !== name);
+  } else {
+    if (selectedSectors.length >= 3) return;
+    el.classList.add('selected');
+    selectedSectors.push(name);
+  }
+}
+
+/* Capital ranges for calculation */
+const capitalDefaults = { A:500, B:2500, C:12000, D:25000 };
+
+function scoreToProfile(total) {
+  if (total <= 12) return 'conservative';
+  if (total <= 22) return 'moderate';
+  return 'aggressive';
+}
+
+function computeAndShowResult() {
+  // Read exact capital
+  const capInput = document.getElementById('capitalAmount').value;
+  capitalAmount = capInput ? parseFloat(capInput) : capitalDefaults[answers[5]] || 2500;
+
+  // Score: A=1, B=2, C=3, D=4
+  const scoreMap = {A:1,B:2,C:3,D:4};
+  let total = 0;
+  for (let i=1;i<=5;i++) total += scoreMap[answers[i]] || 2;
+
+  const profile = scoreToProfile(total);
+  const rules = GSE.profileRules[profile];
+
+  // Save profile to localStorage
+  Profile.save({
+    riskProfile: profile,
+    capitalAmount: capitalAmount,
+    sectors: selectedSectors,
+    answers,
+    completedAt: Date.now(),
+  });
+
+  // Show loader
+  goToStep(7);
+
+  const msgs = ['Analysing your investor profile...','Calibrating risk parameters...','Matching your portfolio style...','Preparing your personalised signals...'];
+  let mi = 0;
+  const interval = setInterval(()=>{
+    mi++;
+    if (mi < msgs.length) document.getElementById('loaderText').textContent = msgs[mi];
+  }, 600);
+
+  setTimeout(()=>{
+    clearInterval(interval);
+    // Render result
+    const badge = document.getElementById('resultBadge');
+    badge.textContent = rules.label.toUpperCase() + ' INVESTOR';
+    badge.className = `ob-profile-badge ${profile}`;
+    document.getElementById('resultTitle').textContent = `Your Risk Profile: ${rules.label}`;
+    document.getElementById('resultDesc').textContent = rules.description +
+      ` Based on your capital of GHS ${capitalAmount.toLocaleString()}, we'll calculate exact investment amounts for each recommendation.`;
+    const picksEl = document.getElementById('resultPicks');
+    picksEl.innerHTML = rules.topPicks.map(t=>`<span class="ob-top-pick-tag">${t}</span>`).join('');
+    goToStep(8);
+  }, 2800);
+}
+
+function goDashboard() { window.location.href = 'dashboard.html'; }
+</script>
+</body>
+</html>
