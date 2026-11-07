@@ -3,89 +3,257 @@
    ================================================================ */
 window.GSE = window.GSE || {};
 
-GSE.stocks = [
-  { ticker: 'MTNGH',  name: 'MTN Ghana Ltd',               sector: 'Telecom',        price: 6.33,   rsi: 58, marketCap: 'large',  pe: 14.2, divYield: 3.8, signal: 'BUY',  fundamentalScore: 78, change: +1.2,  volume: 1230000 },
-  { ticker: 'GCB',    name: 'GCB Bank Ltd',                 sector: 'Banking',        price: 52.00,  rsi: 44, marketCap: 'large',  pe: 6.1,  divYield: 5.2, signal: 'BUY',  fundamentalScore: 82, change: +0.8,  volume: 450000 },
-  { ticker: 'EGH',    name: 'Ecobank Ghana Ltd',            sector: 'Banking',        price: 18.50,  rsi: 62, marketCap: 'large',  pe: 7.8,  divYield: 4.1, signal: 'HOLD', fundamentalScore: 71, change: -0.3,  volume: 380000 },
-  { ticker: 'ACCESS', name: 'Access Bank Ghana',            sector: 'Banking',        price: 5.10,   rsi: 40, marketCap: 'mid',    pe: 5.5,  divYield: 3.0, signal: 'BUY',  fundamentalScore: 68, change: +0.5,  volume: 290000 },
-  { ticker: 'SCB',    name: 'Standard Chartered Ghana',     sector: 'Banking',        price: 29.80,  rsi: 55, marketCap: 'large',  pe: 8.3,  divYield: 6.0, signal: 'HOLD', fundamentalScore: 75, change: +0.1,  volume: 210000 },
-  { ticker: 'CAL',    name: 'CAL Bank Ltd',                 sector: 'Banking',        price: 0.87,   rsi: 38, marketCap: 'mid',    pe: 3.9,  divYield: 2.5, signal: 'BUY',  fundamentalScore: 65, change: +1.2,  volume: 950000 },
-  { ticker: 'RBGH',   name: 'Republic Bank Ghana',          sector: 'Banking',        price: 1.24,   rsi: 51, marketCap: 'mid',    pe: 4.2,  divYield: 3.2, signal: 'HOLD', fundamentalScore: 63, change: 0.0,   volume: 180000 },
-  { ticker: 'ABSA',   name: 'Absa Bank Ghana',              sector: 'Banking',        price: 14.70,  rsi: 67, marketCap: 'large',  pe: 9.1,  divYield: 4.8, signal: 'HOLD', fundamentalScore: 70, change: -0.7,  volume: 320000 },
-  { ticker: 'HFC',    name: 'HFC Bank Ghana Ltd',           sector: 'Banking',        price: 0.29,   rsi: 35, marketCap: 'small',  pe: 2.8,  divYield: 1.0, signal: 'BUY',  fundamentalScore: 52, change: +2.1,  volume: 120000 },
-  { ticker: 'SIC',    name: 'SIC Insurance Co. Ltd',        sector: 'Insurance',      price: 0.20,   rsi: 42, marketCap: 'small',  pe: 5.6,  divYield: 2.2, signal: 'BUY',  fundamentalScore: 58, change: +0.5,  volume: 85000 },
-  { ticker: 'EIC',    name: 'Enterprise Insurance Co.',     sector: 'Insurance',      price: 1.82,   rsi: 60, marketCap: 'small',  pe: 7.2,  divYield: 3.8, signal: 'HOLD', fundamentalScore: 61, change: -0.5,  volume: 62000 },
-  { ticker: 'GOIL',   name: 'GOIL Company Ltd',             sector: 'Energy',         price: 5.45,   rsi: 72, marketCap: 'mid',    pe: 11.4, divYield: 2.9, signal: 'SELL', fundamentalScore: 55, change: +1.8,  volume: 340000 },
-  { ticker: 'TOTAL',  name: 'Total Petroleum Ghana',        sector: 'Energy',         price: 7.80,   rsi: 69, marketCap: 'mid',    pe: 12.0, divYield: 2.1, signal: 'HOLD', fundamentalScore: 60, change: +0.9,  volume: 195000 },
-  { ticker: 'GGBL',   name: 'Guinness Ghana Breweries',     sector: 'Consumer Goods', price: 3.20,   rsi: 48, marketCap: 'mid',    pe: 18.5, divYield: 1.5, signal: 'HOLD', fundamentalScore: 64, change: -1.2,  volume: 270000 },
-  { ticker: 'BOPP',   name: 'Benso Oil Palm Plantation',    sector: 'Agriculture',    price: 5.60,   rsi: 53, marketCap: 'mid',    pe: 9.8,  divYield: 5.5, signal: 'BUY',  fundamentalScore: 73, change: +0.4,  volume: 110000 },
-  { ticker: 'PBC',    name: 'Produce Buying Company',       sector: 'Agriculture',    price: 0.18,   rsi: 32, marketCap: 'small',  pe: 4.1,  divYield: 0.8, signal: 'BUY',  fundamentalScore: 48, change: +3.0,  volume: 45000 },
-  { ticker: 'FML',    name: 'Fan Milk Ltd',                 sector: 'Consumer Goods', price: 1.64,   rsi: 57, marketCap: 'mid',    pe: 15.2, divYield: 3.1, signal: 'HOLD', fundamentalScore: 67, change: -0.2,  volume: 98000 },
-  { ticker: 'UNIL',   name: 'Unilever Ghana Ltd',           sector: 'Consumer Goods', price: 24.50,  rsi: 63, marketCap: 'mid',    pe: 20.1, divYield: 4.5, signal: 'HOLD', fundamentalScore: 69, change: +0.6,  volume: 87000 },
-  { ticker: 'CLYD',   name: 'Clydestone (Ghana) Ltd',       sector: 'Technology',     price: 0.12,   rsi: 29, marketCap: 'small',  pe: 3.5,  divYield: 0.5, signal: 'BUY',  fundamentalScore: 44, change: +4.5,  volume: 25000 },
-  { ticker: 'AADS',   name: 'African Alliance Insurance',   sector: 'Insurance',      price: 0.09,   rsi: 45, marketCap: 'small',  pe: 2.9,  divYield: 1.2, signal: 'HOLD', fundamentalScore: 42, change: 0.0,   volume: 18000 },
-  { ticker: 'TRANSOL',name: 'Transol Solutions Ghana',      sector: 'Technology',     price: 0.04,   rsi: 25, marketCap: 'small',  pe: 1.8,  divYield: 0.0, signal: 'BUY',  fundamentalScore: 38, change: +5.0,  volume: 12000 },
-  { ticker: 'CMLT',   name: 'Camelot Ghana Ltd',            sector: 'Technology',     price: 0.07,   rsi: 33, marketCap: 'small',  pe: 2.2,  divYield: 0.4, signal: 'BUY',  fundamentalScore: 41, change: +2.8,  volume: 9000 },
-  { ticker: 'ETI',    name: 'Ecobank Transnational Inc.',   sector: 'Banking',        price: 0.22,   rsi: 48, marketCap: 'large',  pe: 5.0,  divYield: 2.8, signal: 'HOLD', fundamentalScore: 66, change: +0.4,  volume: 580000 },
-  { ticker: 'AYRTN',  name: 'Airtel-Tigo Ghana',            sector: 'Telecom',        price: 0.10,   rsi: 40, marketCap: 'mid',    pe: 8.5,  divYield: 0.0, signal: 'HOLD', fundamentalScore: 50, change: -1.0,  volume: 120000 },
-  { ticker: 'SOGEGH', name: 'Societe Generale Ghana',       sector: 'Banking',        price: 1.60,   rsi: 56, marketCap: 'mid',    pe: 6.4,  divYield: 3.5, signal: 'BUY',  fundamentalScore: 67, change: +0.6,  volume: 210000 },
-  { ticker: 'MIGA',   name: 'Mega African Capital',         sector: 'Banking',        price: 0.06,   rsi: 37, marketCap: 'small',  pe: 2.0,  divYield: 0.5, signal: 'BUY',  fundamentalScore: 39, change: +2.0,  volume: 15000 },
-  { ticker: 'GSR',    name: 'Golden Star Resources',        sector: 'Mining',         price: 1.95,   rsi: 61, marketCap: 'mid',    pe: 14.8, divYield: 0.8, signal: 'HOLD', fundamentalScore: 62, change: +1.1,  volume: 85000 },
-  { ticker: 'AGA',    name: 'AngloGold Ashanti Ghana',      sector: 'Mining',         price: 285.00, rsi: 66, marketCap: 'large',  pe: 22.0, divYield: 1.2, signal: 'HOLD', fundamentalScore: 72, change: +0.3,  volume: 42000 },
-  { ticker: 'TULLOW', name: 'Tullow Oil Ghana',             sector: 'Energy',         price: 0.44,   rsi: 55, marketCap: 'mid',    pe: 8.2,  divYield: 0.0, signal: 'HOLD', fundamentalScore: 57, change: -0.5,  volume: 95000 },
-  { ticker: 'UNIL2',  name: 'Starlife Assurance',           sector: 'Insurance',      price: 0.55,   rsi: 50, marketCap: 'small',  pe: 6.8,  divYield: 1.9, signal: 'HOLD', fundamentalScore: 54, change: -0.3,  volume: 32000 },
-  { ticker: 'PBC2',   name: 'Meridian-Marshalls',           sector: 'Consumer Goods', price: 0.05,   rsi: 28, marketCap: 'small',  pe: 1.5,  divYield: 0.0, signal: 'BUY',  fundamentalScore: 36, change: +5.6,  volume: 8000 },
-];
+/* ── Stocks: built from the real price snapshot in js/market-data.js ──
+   (generated by tools/refresh-market-data.js). Every indicator below is
+   computed from real daily closing prices; live prices are layered on top. */
+
+// Map the exchange's sector/industry labels onto the app's sector names
+GSE.appSector = (gseSector, industry, ticker) => {
+  if (industry === 'Banking' || ticker === 'ADB') return 'Banking';
+  if (industry === 'Insurance') return 'Insurance';
+  if (gseSector === 'Financials') return 'Financial Services';
+  if (gseSector === 'Telecommunications') return 'Telecom';
+  if (gseSector === 'Oil & Gas') return 'Energy';
+  if (gseSector === 'Basic Materials') return 'Mining';
+  if (ticker === 'BOPP') return 'Agriculture';
+  if (gseSector === 'Health Care') return 'Healthcare';
+  return gseSector || 'Other';
+};
+
+GSE.snapshot = window.GSE_MARKET || { generatedAt: null, stocks: [] };
+if (!window.GSE_MARKET) console.warn('js/market-data.js missing — run: node tools/refresh-market-data.js');
+
+GSE.stocks = GSE.snapshot.stocks.map(m => {
+  const history = (m.closes || []).slice();
+  const last = history[history.length - 1];
+  return {
+    ticker: m.ticker,
+    name: m.name,
+    sector: GSE.appSector(m.gseSector, m.industry, m.ticker),
+    industry: m.industry,
+    shares: m.shares,
+    history,                         // [[YYYY-MM-DD, close], ...] — real daily closes
+    price: last ? last[1] : 0,
+    asOf: last ? last[0] : null,
+    change: 0,
+    volume: null,                    // only known once live data loads
+  };
+});
+
+/* ── Indicator maths ─────────────────────────────────────────── */
+GSE.calc = {
+  sma(v, n) {
+    if (v.length < n) return null;
+    let sum = 0;
+    for (let i = v.length - n; i < v.length; i++) sum += v[i];
+    return sum / n;
+  },
+  // Wilder's RSI
+  rsi(v, n = 14) {
+    if (v.length < n + 1) return null;
+    let ag = 0, al = 0;
+    for (let i = 1; i <= n; i++) { const d = v[i] - v[i - 1]; if (d > 0) ag += d; else al -= d; }
+    ag /= n; al /= n;
+    for (let i = n + 1; i < v.length; i++) {
+      const d = v[i] - v[i - 1];
+      ag = (ag * (n - 1) + Math.max(d, 0)) / n;
+      al = (al * (n - 1) + Math.max(-d, 0)) / n;
+    }
+    if (ag === 0 && al === 0) return 50;
+    if (al === 0) return 100;
+    return 100 - 100 / (1 + ag / al);
+  },
+  ret(v, k) {
+    if (v.length <= k) return null;
+    const base = v[v.length - 1 - k];
+    return base > 0 ? (v[v.length - 1] / base - 1) * 100 : null;
+  },
+  // Annualised volatility of daily log returns over the last n sessions, in %
+  volatility(v, n = 60) {
+    const w = v.slice(-(n + 1));
+    if (w.length < 10) return null;
+    const r = [];
+    for (let i = 1; i < w.length; i++) if (w[i - 1] > 0 && w[i] > 0) r.push(Math.log(w[i] / w[i - 1]));
+    const mean = r.reduce((a, b) => a + b, 0) / r.length;
+    const varc = r.reduce((a, b) => a + (b - mean) ** 2, 0) / Math.max(1, r.length - 1);
+    return Math.sqrt(varc) * Math.sqrt(252) * 100;
+  },
+  // Share of the last n sessions where the price actually moved (GSE stocks often go days without a trade)
+  activity(v, n = 60) {
+    const w = v.slice(-(n + 1));
+    if (w.length < 2) return 0;
+    let moved = 0;
+    for (let i = 1; i < w.length; i++) if (w[i] !== w[i - 1]) moved++;
+    return moved / (w.length - 1);
+  },
+};
+
+const round = (x, d = 1) => x === null || x === undefined ? null : Math.round(x * 10 ** d) / 10 ** d;
+
+// Closing prices used for indicators: the snapshot, plus today's live price if it's newer
+GSE.priceSeries = function(s) {
+  const v = s.history.map(h => h[1]);
+  if (s.livePrice > 0 && v.length) {
+    const today = new Date().toISOString().slice(0, 10);
+    const weekday = ![0, 6].includes(new Date().getUTCDay());
+    if (weekday && today > s.history[s.history.length - 1][0]) v.push(s.livePrice);
+    else v[v.length - 1] = s.livePrice;
+  }
+  return v;
+};
+
+GSE.computeIndicators = function(s) {
+  const C = GSE.calc;
+  const v = GSE.priceSeries(s);
+  const price = v.length ? v[v.length - 1] : s.price;
+  s.price = price;
+  if (!s.liveLoaded) s.change = v.length > 1 && v[v.length - 2] > 0 ? round((price / v[v.length - 2] - 1) * 100, 2) : 0;
+
+  s.rsi        = round(C.rsi(v) ?? 50, 0);
+  s.sma50      = C.sma(v, 50);
+  s.sma200     = C.sma(v, 200);
+  s.ret1m      = round(C.ret(v, 21));
+  s.ret3m      = round(C.ret(v, 63));
+  s.ret1y      = round(C.ret(v, Math.min(252, v.length - 1)));
+  s.volatility = round(C.volatility(v));
+  s.activity   = C.activity(v);
+  s.noHistory  = v.length < 20;      // e.g. listed after the snapshot was taken
+  s.thinlyTraded = !s.noHistory && s.activity < 0.1;
+  const yr = v.slice(-252);
+  s.high52 = yr.length ? Math.max(...yr) : price;
+  s.low52  = yr.length ? Math.min(...yr) : price;
+  const thisYear = String(new Date().getFullYear());
+  const firstThisYear = s.history.find(h => h[0].startsWith(thisYear));
+  const lastPrevYear = [...s.history].reverse().find(h => h[0] < thisYear);
+  const ytdBase = (lastPrevYear || firstThisYear || [])[1];
+  s.ytd = ytdBase > 0 ? round((price / ytdBase - 1) * 100) : null;
+
+  s.marketCapValue = s.shares ? price * s.shares : null;
+  s.marketCap = !s.marketCapValue ? 'small' : s.marketCapValue >= 5e9 ? 'large' : s.marketCapValue >= 1e9 ? 'mid' : 'small';
+
+  /* Score (0–100): trend 40 · momentum 25 · RSI zone 15 · stability 10 · liquidity 10 */
+  let score = 0;
+  const above50 = s.sma50 !== null ? price > s.sma50 : null;
+  const above200 = s.sma200 !== null ? price > s.sma200 : null;
+  if (above50) score += 15;
+  if (above200) score += 15;
+  if (s.sma50 !== null && s.sma200 !== null && s.sma50 > s.sma200) score += 10;
+  if (s.ret3m !== null) score += Math.max(0, Math.min(1, (s.ret3m + 20) / 40)) * 25;
+  // A price that rarely moves isn't "stable" or "neutral RSI" — it just doesn't trade, so no points for either
+  if (!s.thinlyTraded && !s.noHistory) {
+    score += s.rsi >= 40 && s.rsi <= 60 ? 15 : (s.rsi >= 30 && s.rsi <= 70 ? 8 : 0);
+    if (s.volatility !== null) score += Math.max(0, Math.min(1, (80 - s.volatility) / 55)) * 10;
+  }
+  score += Math.min(1, s.activity / 0.5) * 10;
+  s.score = Math.round(score);
+
+  /* Signal rules */
+  if (s.thinlyTraded || s.noHistory) s.signal = 'HOLD';
+  else if (s.rsi > 70 || (above50 === false && above200 === false && (s.ret3m ?? 0) < -10)) s.signal = 'SELL';
+  else if (s.score >= 60 && s.rsi <= 65 && above50 !== false) s.signal = 'BUY';
+  else s.signal = 'HOLD';
+
+  s.signalReason = s.noHistory ? 'Not enough price history yet for a signal'
+    : s.thinlyTraded ? 'Rarely trades — hard to buy or sell, so no active signal'
+    : s.signal === 'SELL' ? (s.rsi > 70 ? `RSI ${s.rsi} is overbought` : 'Below its 50- and 200-day averages with a falling 3-month trend')
+    : s.signal === 'BUY' ? `Uptrend (above 50-day average), score ${s.score}/100, RSI ${s.rsi} not overbought`
+    : 'Mixed trend/momentum — monitor';
+  return s;
+};
+
+GSE.recomputeAll = () => GSE.stocks.forEach(GSE.computeIndicators);
+GSE.recomputeAll();
 
 GSE.sectors = ['Banking & Finance','Insurance','Telecom','Energy & Oil','Consumer Goods','Agriculture','Technology & Fintech','Mining & Resources'];
 
-GSE.macro = {
-  bogRate: 29.0, bogChange: -0.5,
-  usdGhs: 12.85, usdGhsChange: +0.8,
-  goldOz: 3120.40, goldChange: +1.3,
-  cocoaTon: 9800, cocoaChange: -2.1,
-  inflation: 22.4, gdpGrowth: 5.7,
+/* ── Ghana macro: real figures from the snapshot (tools/refresh-market-data.js),
+   with USD/GHS and gold refreshed live in the browser. Each item in GSE.macro.meta
+   carries { value, asOf, source }. Missing figures are null — format with GSE.fmtNum. */
+GSE.buildMacro = function(raw = {}) {
+  const v = k => raw[k] ? raw[k].value : null;
+  const ptsChange = k => raw[k] && raw[k].previous ? round(raw[k].value - raw[k].previous.value, 2) : null;
+  return {
+    bogRate:   v('policyRate'), bogChange: ptsChange('policyRate'),
+    usdGhs:    v('usdGhs'),     usdGhsChange: raw.usdGhs ? raw.usdGhs.changePct : null,
+    goldOz:    v('goldOz'),     goldChange:   raw.goldOz ? raw.goldOz.changePct : null,
+    cocoaTon:  v('cocoaTon'),   cocoaChange:  raw.cocoaTon ? raw.cocoaTon.changePct : null,
+    inflation: v('inflation'),  inflationChange: ptsChange('inflation'),
+    tbill91:   v('tbill91'),
+    gdpGrowth: v('gdpGrowth'),
+    meta: raw,
+  };
+};
+GSE.macro = GSE.buildMacro(GSE.snapshot.macro);
+
+GSE.fmtNum = (v, d = 2, prefix = '', suffix = '') =>
+  v === null || v === undefined ? '—' : prefix + Number(v).toLocaleString('en-GH', { minimumFractionDigits: d, maximumFractionDigits: d }) + suffix;
+
+// USD/GHS and gold change daily — refresh them live (CORS-enabled, no key)
+GSE.CURRENCY_API = [
+  d => `https://cdn.jsdelivr.net/npm/@fawazahmed0/currency-api@${d}/v1/currencies/usd.min.json`,
+  d => `https://${d}.currency-api.pages.dev/v1/currencies/usd.min.json`,
+];
+GSE.fetchCurrencies = async function(date) {
+  for (const url of GSE.CURRENCY_API) {
+    try { const r = await fetch(url(date)); if (r.ok) return await r.json(); } catch {}
+  }
+  return null;
+};
+GSE.fetchLiveMacro = async function() {
+  try {
+    const latest = await GSE.fetchCurrencies('latest');
+    if (!latest || !latest.usd || !latest.usd.ghs) return;
+    const d = new Date(latest.date + 'T12:00:00Z'); d.setUTCDate(d.getUTCDate() - 1);
+    const before = await GSE.fetchCurrencies(d.toISOString().slice(0, 10));
+    const meta = GSE.macro.meta;
+    const ghs = latest.usd.ghs, gold = 1 / latest.usd.xau;
+    meta.usdGhs = { value: +ghs.toFixed(4), asOf: latest.date, source: 'currency-api (daily reference rate)',
+                    changePct: before ? +((ghs / before.usd.ghs - 1) * 100).toFixed(2) : null };
+    if (latest.usd.xau) meta.goldOz = { value: +gold.toFixed(2), asOf: latest.date, source: 'currency-api (XAU)',
+                    changePct: before && before.usd.xau ? +((gold / (1 / before.usd.xau) - 1) * 100).toFixed(2) : null };
+    GSE.macro = GSE.buildMacro(meta);
+    window.dispatchEvent(new CustomEvent('gseMacroUpdated'));
+  } catch (err) {
+    console.error('Error fetching live FX/gold:', err);
+  }
 };
 
-GSE.news = [
-  { id:1, headline:'Bank of Ghana Holds Policy Rate at 29% Amid Inflation Concerns', source:'Business & Financial Times', timestamp:'2026-03-16T10:30:00Z', category:'BoG Decision', direction:'neutral', magnitude:'medium', affectedTickers:['GCB','EGH','ACCESS','SCB','CAL'], confidence:'HIGH', aiInterpretation:'The BoG holding rates steady signals a cautious stance. Bank stocks may face NIM compression but strong capital buffers should maintain dividend payouts.', tags:['MACRO — affects all banks'] },
-  { id:2, headline:'MTN Ghana Reports 18% Revenue Growth in Q4 2025, Raises Dividend', source:'Ghana Web Business', timestamp:'2026-03-15T14:00:00Z', category:'Company News', direction:'bullish', magnitude:'high', affectedTickers:['MTNGH'], confidence:'HIGH', aiInterpretation:'MTN Ghana\'s revenue beat drives a dividend increase. With RSI still below 65, this stock remains a strong BUY for moderate and aggressive profiles.', tags:['BULLISH for MTNGH'] },
-  { id:3, headline:'Global Gold Prices Hit 3-Year High as USD Weakens', source:'Bloomberg Africa', timestamp:'2026-03-15T08:45:00Z', category:'Commodity Prices', direction:'bullish', magnitude:'medium', affectedTickers:['AGA','GSR'], confidence:'MEDIUM', aiInterpretation:'Rising gold prices directly benefit AngloGold Ashanti and Golden Star Resources. Watch for upward earnings revisions in the next quarterly cycle.', tags:['BULLISH for AGA','BULLISH for GSR'] },
-  { id:4, headline:'GCB Bank to Expand Digital Banking Across 5 New Regions', source:'Graphic Online', timestamp:'2026-03-14T16:20:00Z', category:'Company News', direction:'bullish', magnitude:'medium', affectedTickers:['GCB'], confidence:'MEDIUM', aiInterpretation:'GCB\'s digital expansion reduces branch costs and targets the unbanked population — a long-term growth driver for conservative dividend investors.', tags:['BULLISH for GCB'] },
-  { id:5, headline:'Budget 2026 Introduces Capital Gains Tax on Stock Profits', source:'Business & Financial Times', timestamp:'2026-03-13T12:00:00Z', category:'Fiscal Policy', direction:'bearish', magnitude:'high', affectedTickers:['MTNGH','GCB','EGH','ACCESS','SCB','GOIL'], confidence:'HIGH', aiInterpretation:'Capital gains tax reduces effective returns for GSE investors. Short-term sell pressure is likely as institutions reassess position sizes.', tags:['BEARISH — market-wide','MACRO — affects all sectors'] },
-  { id:6, headline:'GOIL Records Record Volume But Margins Squeezed by Forex Costs', source:'Graphic Online', timestamp:'2026-03-12T09:15:00Z', category:'Company News', direction:'bearish', magnitude:'medium', affectedTickers:['GOIL'], confidence:'HIGH', aiInterpretation:'GOIL\'s volume growth is impressive, but forex-linked cost pressures and RSI of 72 (overbought) confirm our SELL signal. Consider taking profits.', tags:['BEARISH for GOIL'] },
-  { id:7, headline:'Cocoa Prices Fall 8% on Global Supply Surplus Fears', source:'Bloomberg Africa', timestamp:'2026-03-11T11:30:00Z', category:'Commodity Prices', direction:'bearish', magnitude:'medium', affectedTickers:['PBC','BOPP','GGBL'], confidence:'MEDIUM', aiInterpretation:'Falling cocoa prices pressure farmgate revenues for PBC. BOPP\'s diversified crop mix offers partial insulation from the downturn.', tags:['BEARISH for PBC','NEUTRAL for BOPP'] },
-  { id:8, headline:'NCA Grants New Spectrum to Airtel-Tigo, Increasing Competition', source:'Ghana Web Business', timestamp:'2026-03-10T15:00:00Z', category:'Telecom Regulation', direction:'neutral', magnitude:'low', affectedTickers:['MTNGH','AYRTN'], confidence:'MEDIUM', aiInterpretation:'New spectrum signals intensifying competition. MTN Ghana\'s dominant 55% market share provides a buffer — watch ARPU trends in upcoming quarters.', tags:['NEUTRAL for MTNGH','BULLISH for AYRTN'] },
-  { id:9, headline:'Access Bank Ghana Posts 40% Profit After Tax Growth in FY2025', source:'Business & Financial Times', timestamp:'2026-03-09T13:45:00Z', category:'Company News', direction:'bullish', magnitude:'high', affectedTickers:['ACCESS'], confidence:'HIGH', aiInterpretation:'ACCESS PAT surge driven by strong loan growth and improved asset quality. With RSI at 40 and PE at 5.5x, this is deeply undervalued.', tags:['BULLISH for ACCESS'] },
-  { id:10, headline:'SIC Insurance Wins GHS 250M Government Vehicle Contract', source:'Graphic Online', timestamp:'2026-03-08T10:00:00Z', category:'Company News', direction:'bullish', magnitude:'medium', affectedTickers:['SIC'], confidence:'MEDIUM', aiInterpretation:'The 3-year government contract provides SIC with reliable revenue. Given its low RSI of 42, this is an interesting speculative BUY.', tags:['BULLISH for SIC'] },
-];
+// Filled by GSE.fetchLiveNews() from live RSS feeds
+GSE.news = [];
 
 GSE.profileRules = {
-  conservative: { label:'Conservative', description:"We'll prioritise dividend-paying blue-chip stocks with low RSI and strong fundamentals.", maxAllocationPct:8,  maxRSI:60, minDivYield:2.0, topPicks:['GCB','MTNGH','EGH','SCB','BOPP'] },
-  moderate:     { label:'Moderate',     description:"We'll balance growth and income — liquid stocks with RSI below 70.",                    maxAllocationPct:15, maxRSI:70, minDivYield:0,   topPicks:['MTNGH','GCB','ACCESS','CAL','BOPP','SOGEGH'] },
-  aggressive:   { label:'Aggressive',   description:"We'll prioritise high-growth stocks and small caps for maximum return potential.",       maxAllocationPct:20, maxRSI:80, minDivYield:0,   topPicks:['MTNGH','ACCESS','CAL','HFC','SIC','CLYD','TRANSOL','PBC'] },
+  conservative: { label:'Conservative', description:"We'll prioritise large and mid-cap, lower-volatility stocks in steady uptrends with RSI below 60.", maxAllocationPct:8,  maxRSI:60, maxVolatility:35, allowSmallCaps:false },
+  moderate:     { label:'Moderate',     description:"We'll balance growth and stability — liquid stocks in uptrends with RSI below 70.",                     maxAllocationPct:15, maxRSI:70, maxVolatility:60, allowSmallCaps:true },
+  aggressive:   { label:'Aggressive',   description:"We'll include smaller, faster-moving stocks for maximum return potential.",                               maxAllocationPct:20, maxRSI:80, maxVolatility:999, allowSmallCaps:true },
 };
 
-GSE.orbitCards = [
-  { label:'RSI Signal Detected', value:'MTNGH', sub:'RSI 58 — BUY Zone', signal:'BUY' },
-  { label:'Signal', value:'BUY · GCB · GHS 52.00', sub:'Fundamental Score: 82/100', signal:'BUY' },
-  { label:'Stocks Monitored', value:'31 Stocks', sub:'Live Ghana Stock Exchange', signal:'DATA' },
-];
-
-GSE.getStock    = t => GSE.stocks.find(s => s.ticker.toUpperCase() === t.toUpperCase());
-GSE.getSignalStocks = (signal='BUY', profile='moderate') => {
+GSE.getStock    = t => t ? GSE.stocks.find(s => s.ticker.toUpperCase() === String(t).toUpperCase()) : undefined;
+GSE.fitsProfile = (s, profile='moderate') => {
   const rules = GSE.profileRules[profile] || GSE.profileRules.moderate;
-  return GSE.stocks.filter(s => (signal==='ALL' || s.signal===signal) && s.rsi <= rules.maxRSI)
-                   .sort((a,b) => b.fundamentalScore - a.fundamentalScore);
+  return s.rsi <= rules.maxRSI
+      && (s.volatility === null || s.volatility <= rules.maxVolatility)
+      && (rules.allowSmallCaps || s.marketCap !== 'small');
 };
-GSE.calcAllocation = (ticker, capital, profile='moderate') => {
+GSE.getSignalStocks = (signal='BUY', profile='moderate') =>
+  GSE.stocks.filter(s => (signal==='ALL' || s.signal===signal) && GSE.fitsProfile(s, profile))
+            .sort((a,b) => b.score - a.score);
+GSE.topPicks = (profile='moderate', n=5) => GSE.getSignalStocks('BUY', profile).slice(0, n).map(s => s.ticker);
+// pct defaults to the profile's per-stock maximum; pass a smaller pct when splitting capital across many stocks
+GSE.calcAllocation = (ticker, capital, profile='moderate', pct) => {
   const stock = GSE.getStock(ticker); if (!stock) return null;
   const rules = GSE.profileRules[profile] || GSE.profileRules.moderate;
-  const pct = rules.maxAllocationPct;
+  if (pct === undefined) pct = rules.maxAllocationPct;
   const amount = (pct/100)*capital;
   const shares = Math.floor(amount/stock.price);
   return { ticker, pct, amount, shares, pricePerShare:stock.price, profile, capital };
 };
+// Per-stock % so that n positions never exceed 100% of capital
+GSE.perStockPct = (n, profile='moderate') => {
+  const rules = GSE.profileRules[profile] || GSE.profileRules.moderate;
+  return n > 0 ? Math.min(rules.maxAllocationPct, Math.floor((100 / n) * 10) / 10) : rules.maxAllocationPct;
+};
+GSE.fmtPct = v => v === null || v === undefined ? '—' : `${v > 0 ? '+' : ''}${v}%`;
+GSE.formatCap = v => !v ? '—' : v >= 1e9 ? `GHS ${(v/1e9).toFixed(1)}B` : `GHS ${(v/1e6).toFixed(0)}M`;
 
 /* ================================================================
    GSE StockSense AI — Live API Fetchers
@@ -96,97 +264,89 @@ GSE.fetchLiveStockData = async function() {
     const res = await fetch('https://dev.kwayisi.org/apis/gse/live');
     if (!res.ok) throw new Error('Failed to fetch stock data');
     const liveData = await res.json();
-    
+    if (!Array.isArray(liveData)) throw new Error('Unexpected stock data format');
+
     liveData.forEach(liveStock => {
-      const existing = GSE.getStock(liveStock.name);
-      if (existing) {
-        existing.price = liveStock.price;
-        existing.change = liveStock.change;
-        existing.volume = liveStock.volume;
-      } else {
-        GSE.stocks.push({
-          ticker: liveStock.name,
-          name: liveStock.name,
-          sector: 'Other',
-          price: liveStock.price,
-          rsi: 50,
-          marketCap: 'small',
-          pe: 10,
-          divYield: 0,
-          signal: 'HOLD',
-          fundamentalScore: 50,
-          change: liveStock.change,
-          volume: liveStock.volume
-        });
+      const price = Number(liveStock.price);
+      if (!liveStock.name || !(price > 0)) return;
+      // The API's `change` is in GHS — convert to a % move from the previous close
+      const absChange = Number(liveStock.change) || 0;
+      const prevClose = price - absChange;
+      const changePct = prevClose > 0 ? +((absChange / prevClose) * 100).toFixed(2) : 0;
+
+      let s = GSE.getStock(liveStock.name);
+      if (!s) {
+        // Newly listed since the snapshot — indicators build up from its live price
+        s = { ticker: liveStock.name, name: liveStock.name, sector: 'Other', industry: null, shares: null, history: [], price, asOf: null };
+        GSE.stocks.push(s);
       }
+      s.livePrice = price;
+      s.liveLoaded = true;
+      s.change = changePct;
+      s.volume = Number(liveStock.volume) || 0;
+      GSE.computeIndicators(s);
     });
 
     // Notify UI to re-render
+    GSE.liveLoaded = true;
     window.dispatchEvent(new CustomEvent('gseDataUpdated'));
   } catch (err) {
     console.error('Error fetching GSE live stocks:', err);
   }
 };
 
+// rss2json converts RSS to JSON and sends CORS headers (the old corsproxy.io keyless URL now returns 403)
+GSE.RSS_PROXY = 'https://api.rss2json.com/v1/api.json?rss_url=';
+
+// filter:false = business-only feed, keep every item; filter:true = apply GSE.newsKeywords
 GSE.rssSources = [
-  { url: 'https://citinewsroom.com/category/business/feed/', category: 'Ghana News' },
-  { url: 'https://www.myjoyonline.com/category/business/feed/', category: 'Ghana News' },
-  { url: 'https://graphic.com.gh/category/business/feed', category: 'Ghana News' },
-  { url: 'https://feeds.bloomberg.com/markets/news.rss', category: 'Global News' },
-  { url: 'https://feeds.reuters.com/reuters/businessNews', category: 'Global News' },
-  { url: 'https://www.cnbc.com/id/10000664/device/rss/rss.html', category: 'Global News' }
+  { url: 'https://www.myjoyonline.com/business/feed/',              category: 'Ghana News',  filter: false },
+  { url: 'https://feeds.bloomberg.com/markets/news.rss',            category: 'Global News', filter: true },
+  { url: 'https://www.cnbc.com/id/10000664/device/rss/rss.html',    category: 'Global News', filter: true },
+  { url: 'https://feeds.bbci.co.uk/news/business/rss.xml',          category: 'Global News', filter: true },
 ];
 
-GSE.newsKeywords = ['stocks', 'shares', 'investment', 'economy', 'inflation', 'interest rates', 'banking', 'earnings', 'gdp', 'cedi', 'market'];
+GSE.newsKeywords = ['stock', 'share', 'invest', 'economy', 'inflation', 'interest rate', 'bank', 'earnings', 'gdp', 'cedi', 'market', 'gold', 'cocoa', 'oil', 'dividend', 'profit'];
+
+// rss2json gives "YYYY-MM-DD HH:MM:SS" in UTC; Safari can't parse that form directly
+GSE.parseFeedDate = function(str) {
+  if (!str) return new Date();
+  let d = new Date(String(str).replace(' ', 'T') + (/[zZ]|[+-]\d\d:?\d\d$/.test(str) ? '' : 'Z'));
+  if (isNaN(d)) d = new Date(str);
+  return isNaN(d) ? new Date() : d;
+};
 
 GSE.fetchLiveNews = async function() {
   try {
-    const proxyUrl = 'https://corsproxy.io/?';
-    
     const promises = GSE.rssSources.map(async (source) => {
       try {
-        const fetchUrl = proxyUrl + encodeURIComponent(source.url);
-        const res = await fetch(fetchUrl);
+        const res = await fetch(GSE.RSS_PROXY + encodeURIComponent(source.url));
         if (!res.ok) return [];
-        const text = await res.text();
-        const parser = new DOMParser();
-        const xmlDoc = parser.parseFromString(text, 'text/xml');
-        const items = Array.from(xmlDoc.querySelectorAll('item'));
-        
-        let sourceName = source.category;
-        const channelTitle = xmlDoc.querySelector('channel > title');
-        if (channelTitle && channelTitle.textContent) {
-          sourceName = channelTitle.textContent.replace('RSS Feed', '').trim();
-        }
+        const data = await res.json();
+        if (data.status !== 'ok' || !Array.isArray(data.items)) return [];
 
-        const parsedItems = items.map((item, index) => {
-          const title = item.querySelector('title')?.textContent || '';
-          const link = item.querySelector('link')?.textContent || '';
-          const pubDateNode = item.querySelector('pubDate');
-          const pubDate = pubDateNode ? pubDateNode.textContent : new Date().toISOString();
-          
-          return {
-            id: sourceName + '_' + index + '_' + Date.now(),
-            headline: title,
-            source: sourceName,
-            timestamp: new Date(pubDate).toISOString(),
-            category: source.category,
-            link: link,
-            direction: 'neutral',
-            magnitude: 'medium',
-            affectedTickers: [],
-            confidence: 'MEDIUM',
-            aiInterpretation: 'Live external article.',
-            tags: [source.category.toUpperCase()]
-          };
-        });
-        
-        // Keyword filter
+        const sourceName = (data.feed && data.feed.title ? data.feed.title.replace('RSS Feed', '').trim() : '') || source.category;
+
+        const parsedItems = data.items.map((item, index) => ({
+          id: sourceName + '_' + index + '_' + Date.now(),
+          headline: (item.title || '').trim(),
+          source: sourceName,
+          timestamp: GSE.parseFeedDate(item.pubDate).toISOString(),
+          category: source.category,
+          link: item.link || null,
+          direction: 'neutral',
+          magnitude: 'medium',
+          affectedTickers: [],
+          confidence: 'MEDIUM',
+          aiInterpretation: 'Live external article.',
+          tags: [source.category.toUpperCase()]
+        })).filter(item => item.headline);
+
+        if (!source.filter) return parsedItems;
         return parsedItems.filter(item => {
           const lowerTitle = item.headline.toLowerCase();
           return GSE.newsKeywords.some(kw => lowerTitle.includes(kw));
         });
-        
       } catch (err) {
         console.error('Error fetching RSS ' + source.url, err);
         return [];
@@ -195,7 +355,7 @@ GSE.fetchLiveNews = async function() {
 
     const results = await Promise.all(promises);
     const allNews = results.flat();
-    
+
     if (allNews.length > 0) {
       allNews.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
       GSE.news = allNews;
@@ -206,8 +366,14 @@ GSE.fetchLiveNews = async function() {
   }
 };
 
-// Start initial fetches and set intervals
-GSE.fetchLiveStockData();
-GSE.fetchLiveNews();
-setInterval(GSE.fetchLiveStockData, 5 * 60 * 1000);
-setInterval(GSE.fetchLiveNews, 10 * 60 * 1000);
+// Called by initApp() on app pages only, so the landing/login pages don't hit the APIs
+GSE.startLiveUpdates = function() {
+  if (GSE._liveStarted) return;
+  GSE._liveStarted = true;
+  GSE.fetchLiveStockData();
+  GSE.fetchLiveNews();
+  GSE.fetchLiveMacro();
+  setInterval(GSE.fetchLiveStockData, 5 * 60 * 1000);
+  setInterval(GSE.fetchLiveNews, 10 * 60 * 1000);
+  setInterval(GSE.fetchLiveMacro, 30 * 60 * 1000);
+};

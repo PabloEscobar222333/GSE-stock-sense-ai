@@ -1,0 +1,7 @@
+# Secrets — copy js/config.example.js to js/config.js locally
+js/config.js
+
+# Logs from the scheduled data refresh
+tools/refresh.log
+
+.DS_Store
