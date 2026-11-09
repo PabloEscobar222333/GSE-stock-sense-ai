@@ -23,7 +23,7 @@
   <main class="main-content">
     <div class="topbar">
       <div class="topbar-left"><h2>Alert Centre</h2><div class="topbar-sub">RSI thresholds, MA crossovers, earnings watch</div></div>
-      <div class="topbar-right"><div class="usage-pill" data-usage-pill></div></div>
+      <div class="topbar-right"></div>
     </div>
     <div class="page-body">
       <!-- Create Alert -->
@@ -59,43 +59,41 @@
   </main>
   <div id="mobileNavHolder"></div>
 </div>
+<script src="js/market-data.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script>
 if (!Auth.requireAuth()) throw new Error();
 initApp('alerts.html');
 
-let alerts = [];
-try { alerts = JSON.parse(localStorage.getItem('gse_alerts')) || defaultAlerts(); } catch { alerts = defaultAlerts(); }
+// Alerts are stored per user and evaluated in app.js (Alerts.check) whenever market data updates
+let alerts = Alerts.get();
 
-function defaultAlerts() {
-  return [
-    { id:1, ticker:'MTNGH', type:'RSI_ABOVE', threshold:70, active:true, created:'2026-03-14', triggered:false },
-    { id:2, ticker:'GCB',   type:'RSI_BELOW', threshold:35, active:true, created:'2026-03-13', triggered:false },
-    { id:3, ticker:'GOIL',  type:'PRICE_BELOW',threshold:5.00,active:true,created:'2026-03-12',triggered:false },
-    { id:4, ticker:'ACCESS',type:'SIGNAL_CHANGE',threshold:0,active:true,created:'2026-03-10',triggered:true },
-  ];
-}
-
-function saveAlerts() { localStorage.setItem('gse_alerts', JSON.stringify(alerts)); }
+function saveAlerts() { Alerts.save(alerts); }
 
 function createAlert() {
   const ticker = document.getElementById('alertTicker').value.trim().toUpperCase();
   const type   = document.getElementById('alertType').value;
-  const thresh = parseFloat(document.getElementById('alertThreshold').value) || 0;
+  const raw    = document.getElementById('alertThreshold').value;
+  const thresh = parseFloat(raw);
   if (!ticker) { Toast.show('error','Enter a ticker'); return; }
   if (!GSE.getStock(ticker)) { Toast.show('error',`${ticker} not found on GSE`); return; }
-  alerts.unshift({ id: Date.now(), ticker, type, threshold:thresh, active:true, created:new Date().toISOString().split('T')[0], triggered:false });
-  saveAlerts(); renderAlerts(); Toast.show('success', `Alert created for ${ticker}`);
+  if (type !== 'SIGNAL_CHANGE' && !(thresh >= 0)) { Toast.show('error','Enter a threshold'); return; }
+  Alerts.create(ticker, type, type === 'SIGNAL_CHANGE' ? 0 : thresh);
+  alerts = Alerts.get();
+  renderAlerts(); Toast.show('success', `Alert created for ${ticker}`);
 }
 
 function removeAlert(id) { alerts = alerts.filter(a => a.id !== id); saveAlerts(); renderAlerts(); }
-function toggleAlert(id) { const a = alerts.find(x=>x.id===id); if(a) { a.active=!a.active; saveAlerts(); renderAlerts(); }}
-
-function alertDesc(a) {
-  const labels = { RSI_ABOVE:`RSI rises above ${a.threshold}`, RSI_BELOW:`RSI falls below ${a.threshold}`, PRICE_ABOVE:`Price rises above GHS ${a.threshold}`, PRICE_BELOW:`Price falls below GHS ${a.threshold}`, SIGNAL_CHANGE:'Signal changes (BUY/SELL/HOLD)' };
-  return labels[a.type] || a.type;
+function toggleAlert(id) {
+  const a = alerts.find(x=>x.id===id);
+  if (!a) return;
+  a.active = !a.active; saveAlerts();
+  Alerts.check(); alerts = Alerts.get(); renderAlerts();
 }
+function rearmAlert(id) { Alerts.rearm(id); Alerts.check(); alerts = Alerts.get(); renderAlerts(); }
+
+function alertDesc(a) { return Alerts.describe(a); }
 
 function renderAlerts() {
   const el = document.getElementById('alertsList');
@@ -113,10 +111,11 @@ function renderAlerts() {
       </div>
       <div style="flex:1">
         <div class="alert-title">${a.ticker} · <span style="font-size:12px;font-weight:400;color:var(--text-secondary)">${alertDesc(a)}</span></div>
-        <div class="alert-desc">${s ? s.name : ''}</div>
+        <div class="alert-desc">${s ? escapeHtml(s.name) : ''}${s ? ` · now RSI ${s.rsi}, GHS ${s.price.toFixed(2)}, ${s.signal}` : ''}</div>
         <div style="display:flex;justify-content:space-between;align-items:center;margin-top:8px">
-          <div class="alert-time">Created ${a.created} · <span style="color:${statusColor};font-weight:600">${statusLabel}</span></div>
+          <div class="alert-time">Created ${a.created}${a.triggeredAt ? ' · fired ' + new Date(a.triggeredAt).toLocaleString('en-GH', {day:'numeric', month:'short', hour:'2-digit', minute:'2-digit'}) : ''} · <span style="color:${statusColor};font-weight:600">${statusLabel}</span></div>
           <div style="display:flex;gap:6px">
+            ${a.triggered ? `<button class="btn btn-sm" style="padding:4px 10px;font-size:11px;border:1px solid rgba(245,166,35,0.3);border-radius:var(--radius-pill);color:var(--amber)" onclick="rearmAlert(${a.id})">Re-arm</button>` : ''}
             <button class="btn btn-sm" style="padding:4px 10px;font-size:11px;border:1px solid var(--border);border-radius:var(--radius-pill);color:var(--text-secondary)" onclick="toggleAlert(${a.id})">${a.active?'Pause':'Resume'}</button>
             <button class="btn btn-sm" style="padding:4px 10px;font-size:11px;border:1px solid rgba(255,69,96,0.3);border-radius:var(--radius-pill);color:var(--red)" onclick="removeAlert(${a.id})">Delete</button>
           </div>
@@ -127,6 +126,9 @@ function renderAlerts() {
 }
 
 renderAlerts();
+// Re-render when live data fires an alert
+window.addEventListener('gseAlertsUpdated', () => { alerts = Alerts.get(); renderAlerts(); });
+window.addEventListener('gseDataUpdated', () => { alerts = Alerts.get(); renderAlerts(); });
 </script>
 </body>
 </html>

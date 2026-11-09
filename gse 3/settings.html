@@ -37,7 +37,7 @@
   <main class="main-content">
     <div class="topbar">
       <div class="topbar-left"><h2>Settings</h2><div class="topbar-sub">Manage your account and preferences</div></div>
-      <div class="topbar-right"><div class="usage-pill" data-usage-pill></div></div>
+      <div class="topbar-right"></div>
     </div>
     <div class="page-body">
       <div class="settings-layout">
@@ -45,7 +45,6 @@
         <div class="settings-nav">
           <button class="sn-item active" onclick="showPanel('profile',this)">Profile</button>
           <button class="sn-item" onclick="showPanel('preferences',this)">Preferences</button>
-          <button class="sn-item" onclick="showPanel('subscription',this)">Subscription</button>
           <button class="sn-item" onclick="showPanel('data',this)">Data & Privacy</button>
         </div>
 
@@ -108,25 +107,6 @@
             <button class="btn btn-primary" onclick="savePreferences()">Save Preferences</button>
           </div>
 
-          <!-- SUBSCRIPTION -->
-          <div class="settings-panel" id="panelSubscription">
-            <div class="settings-section">
-              <div class="ss-title">Current Plan</div>
-              <div id="subscriptionStatus"></div>
-            </div>
-            <div class="settings-section">
-              <div class="ss-title">Usage</div>
-              <div class="ss-row">
-                <div><div class="ss-label">Analyses Used</div></div>
-                <span style="font-family:var(--font-data)" id="usageDisplay">0 / 5</span>
-              </div>
-              <div class="ss-row">
-                <div><div class="ss-label">Reset Usage (Demo)</div><div class="ss-sub">Reset your free analysis counter for testing</div></div>
-                <button class="btn btn-secondary btn-sm" onclick="resetUsage()">Reset</button>
-              </div>
-            </div>
-          </div>
-
           <!-- DATA -->
           <div class="settings-panel" id="panelData">
             <div class="settings-section">
@@ -140,7 +120,7 @@
                 <button class="btn btn-sm" style="color:var(--amber);border:1px solid rgba(245,166,35,0.3);border-radius:var(--radius-pill);padding:7px 18px;font-size:13px" onclick="clearWatchlist()">Clear</button>
               </div>
               <div class="ss-row">
-                <div><div class="ss-label">Delete Account Data</div><div class="ss-sub">Removes all local data including profile and subscription</div></div>
+                <div><div class="ss-label">Delete Account Data</div><div class="ss-sub">Removes your account, profile, watchlist, alerts and preferences</div></div>
                 <button class="btn btn-danger btn-sm" onclick="deleteAllData()">Delete All</button>
               </div>
             </div>
@@ -158,12 +138,13 @@
   </main>
   <div id="mobileNavHolder"></div>
 </div>
+<script src="js/market-data.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script>
 if (!Auth.requireAuth()) throw new Error();
 initApp('settings.html');
-const user    = Auth.getSession() || {};
+let user      = Auth.getSession() || {};
 const profile = Profile.get() || {};
 const rules   = GSE.profileRules[profile.riskProfile] || GSE.profileRules.moderate;
 
@@ -174,17 +155,10 @@ document.getElementById('settingsAvatar').textContent = (user.name||'U')[0].toUp
 document.getElementById('riskBadge').textContent = rules.label;
 document.getElementById('capitalDisplay').textContent = 'GHS ' + (profile.capitalAmount||5000).toLocaleString();
 
-// Usage
-const usage = Usage.get();
-document.getElementById('usageDisplay').textContent = Usage.isPremium() ? 'Unlimited (Premium)' : `${usage.count} / ${usage.limit}`;
-
-// Subscription
-const sub = (() => { try { return JSON.parse(localStorage.getItem('gse_subscription')); } catch { return null; } })();
-document.getElementById('subscriptionStatus').innerHTML = sub && sub.isPremium
-  ? `<div class="ss-row"><div><div class="ss-label" style="color:var(--emerald)">Premium — ${sub.plan==='monthly'?'Monthly':'Yearly'} Plan</div><div class="ss-sub">Active since ${new Date(sub.startedAt).toLocaleDateString('en-GH')}</div></div><span class="badge badge-buy">Active</span></div>
-     <button class="btn btn-sm" style="margin-top:16px;color:var(--red);border:1px solid rgba(255,69,96,0.3);border-radius:var(--radius-pill);padding:7px 18px;font-size:13px" onclick="cancelSub()">Cancel Subscription</button>`
-  : `<div class="ss-row"><div><div class="ss-label">Free Tier</div><div class="ss-sub">${Math.max(0,5-usage.count)} analyses remaining</div></div><span class="badge badge-hold">Free</span></div>
-     <a href="pricing.html" class="btn btn-gold" style="margin-top:16px;display:inline-flex">Upgrade to Premium</a>`;
+// Preferences
+const PREF_IDS = ['notifSignals', 'notifRSI', 'notifNews', 'showRSI', 'showCharts'];
+const prefs = Prefs.get();
+PREF_IDS.forEach(id => { document.getElementById(id).checked = !!prefs[id]; });
 
 function showPanel(id, btn) {
   document.querySelectorAll('.settings-panel').forEach(p => p.classList.remove('active'));
@@ -196,42 +170,42 @@ function showPanel(id, btn) {
 function saveProfile() {
   const name  = document.getElementById('settingsName').value.trim();
   const email = document.getElementById('settingsEmail').value.trim();
-  const u = { ...user, name, email };
-  Auth.saveUser(u); Auth.login(u);
-  document.getElementById('settingsAvatar').textContent = (name||'U')[0].toUpperCase();
+  if (!name) { Toast.show('error', 'Name cannot be empty'); return; }
+  if (!document.getElementById('settingsEmail').checkValidity() || !email) { Toast.show('error', 'Enter a valid email address'); return; }
+  try {
+    user = Auth.updateAccount({ name, email });
+  } catch (err) {
+    Toast.show('error', err.message);
+    return;
+  }
+  document.getElementById('settingsAvatar').textContent = name[0].toUpperCase();
   Toast.show('success', 'Profile saved successfully');
+  setTimeout(() => location.reload(), 800); // refresh sidebar/topbar name
 }
 
-function savePreferences() { Toast.show('success', 'Preferences saved'); }
-
-function resetUsage() {
-  localStorage.setItem('gse_usage', JSON.stringify({count:0,limit:5}));
-  document.getElementById('usageDisplay').textContent = '0 / 5';
-  Usage.updateAllCounters();
-  Toast.show('success','Usage counter reset to 0');
-}
-
-function cancelSub() {
-  localStorage.removeItem('gse_subscription');
-  Toast.show('info','Subscription cancelled. Free tier restored.');
-  setTimeout(() => location.reload(), 1500);
+function savePreferences() {
+  const next = {};
+  PREF_IDS.forEach(id => { next[id] = document.getElementById(id).checked; });
+  Prefs.save(next);
+  Toast.show('success', 'Preferences saved');
 }
 
 function exportData() {
-  const data = { profile: Profile.get(), watchlist: JSON.parse(localStorage.getItem('gse_watchlist')||'[]'), alerts: JSON.parse(localStorage.getItem('gse_alerts')||'[]'), usage: Usage.get() };
+  const data = { account: { name: user.name, email: user.email }, profile: Profile.get(), watchlist: Watchlist.get(), alerts: Alerts.get(), preferences: Prefs.get() };
   const blob = new Blob([JSON.stringify(data, null, 2)], { type:'application/json' });
   const a = document.createElement('a'); a.href = URL.createObjectURL(blob);
   a.download = 'stocksense-data.json'; a.click();
+  setTimeout(() => URL.revokeObjectURL(a.href), 1000);
 }
 
 function clearWatchlist() {
-  localStorage.removeItem('gse_watchlist');
+  Watchlist.clear();
   Toast.show('success', 'Watchlist cleared');
 }
 
 function deleteAllData() {
-  if (!confirm('Delete all StockSense data? This cannot be undone.')) return;
-  ['gse_user','gse_session','gse_profile','gse_usage','gse_subscription','gse_watchlist','gse_alerts'].forEach(k => localStorage.removeItem(k));
+  if (!confirm('Delete your StockSense account and all its data? This cannot be undone.')) return;
+  Auth.deleteAccount();
   window.location.href = 'login.html';
 }
 </script>

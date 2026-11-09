@@ -37,7 +37,7 @@
   <main class="main-content">
     <div class="topbar">
       <div class="topbar-left"><h2>Portfolio Allocator</h2><div class="topbar-sub">Exact GHS amounts and share counts for your profile</div></div>
-      <div class="topbar-right"><div class="usage-pill" data-usage-pill></div></div>
+      <div class="topbar-right"></div>
     </div>
     <div class="page-body">
       <!-- Capital input -->
@@ -84,6 +84,7 @@
   </main>
   <div id="mobileNavHolder"></div>
 </div>
+<script src="js/market-data.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script>
@@ -97,7 +98,8 @@ document.getElementById('profileLabel').textContent = rules.label;
 document.getElementById('maxAllocPct').textContent  = rules.maxAllocationPct + '%';
 
 function updateAllocations() {
-  const capital = parseFloat(document.getElementById('capitalInput').value) || 5000;
+  let capital = parseFloat(document.getElementById('capitalInput').value);
+  if (!(capital > 0)) { capital = 5000; document.getElementById('capitalInput').value = capital; }
   // Save updated capital
   const p = Profile.get() || {};
   p.capitalAmount = capital; Profile.save(p);
@@ -105,37 +107,45 @@ function updateAllocations() {
   const stocks = GSE.getSignalStocks('BUY', profile.riskProfile).slice(0, 8);
   document.getElementById('stockCount').textContent = `${stocks.length} stocks`;
 
-  // Summary
-  const totalPct     = Math.min(stocks.length * rules.maxAllocationPct, 100);
-  const totalInvested = (totalPct / 100) * capital;
+  // Split capital so the positions never add up to more than 100%
+  const pct    = GSE.perStockPct(stocks.length, profile.riskProfile);
+  const allocs = stocks.map(s => GSE.calcAllocation(s.ticker, capital, profile.riskProfile, pct)).filter(Boolean);
+
+  // Summary — uses the actual cost of whole shares, not the target amount
+  const totalInvested = allocs.reduce((sum, a) => sum + a.shares * a.pricePerShare, 0);
+  const totalPct     = capital > 0 ? (totalInvested / capital) * 100 : 0;
   const cashReserve  = capital - totalInvested;
   const summaryCard  = document.getElementById('summaryCard');
   summaryCard.style.display = 'block';
   document.getElementById('summaryRows').innerHTML = `
     <div class="summary-row"><span class="pa-row-lbl">Total Capital</span><span class="pa-row-val">GHS ${capital.toLocaleString()}</span></div>
-    <div class="summary-row"><span class="pa-row-lbl">Recommended Stocks</span><span class="pa-row-val">${stocks.length}</span></div>
+    <div class="summary-row"><span class="pa-row-lbl">Recommended Stocks</span><span class="pa-row-val">${stocks.length} × ${pct}% each</span></div>
     <div class="summary-row"><span class="pa-row-lbl">Total to Invest</span><span class="pa-row-val" style="color:var(--emerald)">GHS ${totalInvested.toFixed(2)}</span></div>
     <div class="summary-row"><span class="pa-row-lbl">Cash Reserve</span><span class="pa-row-val" style="color:var(--amber)">GHS ${cashReserve.toFixed(2)}</span></div>
     <div class="summary-row"><span class="pa-row-lbl">Portfolio Coverage</span><span class="pa-row-val">${totalPct.toFixed(0)}% of capital deployed</span></div>`;
 
   // Allocation cards
-  document.getElementById('allocGrid').innerHTML = stocks.map(s => {
-    const alloc = GSE.calcAllocation(s.ticker, capital, profile.riskProfile);
+  if (!stocks.length) {
+    document.getElementById('allocGrid').innerHTML = `<div style="color:var(--text-muted);padding:24px">No BUY signals currently match your ${rules.label.toLowerCase()} profile rules.</div>`;
+    return;
+  }
+  document.getElementById('allocGrid').innerHTML = stocks.map((s, i) => {
+    const alloc = allocs[i];
     if (!alloc) return '';
-    const scoreColor = s.fundamentalScore>=70?'var(--emerald)':s.fundamentalScore>=50?'var(--amber)':'var(--red)';
+    const scoreColor = s.score>=70?'var(--emerald)':s.score>=50?'var(--amber)':'var(--red)';
     return `<div class="pa-card">
       <div class="pa-card-top">
-        <div><div class="pa-ticker">${s.ticker}</div><div class="pa-name">${s.name}</div></div>
+        <div><div class="pa-ticker">${s.ticker}</div><div class="pa-name">${escapeHtml(s.name)}</div></div>
         <span class="badge badge-buy">BUY</span>
       </div>
       <div class="pa-row"><span class="pa-row-lbl">Price</span><span class="pa-row-val">GHS ${s.price.toFixed(2)}</span></div>
       <div class="pa-row"><span class="pa-row-lbl">Allocation</span><span class="pa-row-val" style="color:var(--gold)">${alloc.pct}%</span></div>
       <div class="pa-row"><span class="pa-row-lbl">Amount to Invest</span><span class="pa-row-val" style="color:var(--emerald)">GHS ${alloc.amount.toFixed(2)}</span></div>
-      <div class="pa-row"><span class="pa-row-lbl">Shares to Buy</span><span class="pa-row-val">~${alloc.shares} shares</span></div>
-      <div class="pa-row"><span class="pa-row-lbl">RSI · P/E · Yield</span><span class="pa-row-val">${s.rsi} · ${s.pe}x · ${s.divYield}%</span></div>
+      <div class="pa-row"><span class="pa-row-lbl">Shares to Buy</span><span class="pa-row-val">~${alloc.shares} shares (GHS ${(alloc.shares * alloc.pricePerShare).toFixed(2)})</span></div>
+      <div class="pa-row"><span class="pa-row-lbl">RSI · 3M · Volatility</span><span class="pa-row-val">${s.rsi} · ${GSE.fmtPct(s.ret3m)} · ${s.volatility ?? '—'}%</span></div>
       <div class="pa-bar-wrap">
-        <div class="pa-bar-label"><span>Fundamental Score</span><span>${s.fundamentalScore}/100</span></div>
-        <div class="progress-bar"><div class="progress-fill" style="width:${s.fundamentalScore}%;background:${scoreColor}"></div></div>
+        <div class="pa-bar-label"><span>Signal Score</span><span>${s.score}/100</span></div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${s.score}%;background:${scoreColor}"></div></div>
       </div>
     </div>`;
   }).join('');

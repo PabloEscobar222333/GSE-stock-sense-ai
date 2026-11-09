@@ -42,7 +42,7 @@
   <main class="main-content">
     <div class="topbar">
       <div class="topbar-left"><h2>Market News Monitor</h2><div class="topbar-sub">AI-tagged news impacting GSE stocks</div></div>
-      <div class="topbar-right"><div class="usage-pill" data-usage-pill>3 of 5 free</div></div>
+      <div class="topbar-right"></div>
     </div>
     <div class="page-body">
       <div class="news-layout">
@@ -60,6 +60,7 @@
   </main>
   <div id="mobileNavHolder"></div>
 </div>
+<script src="js/market-data.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script>
@@ -77,30 +78,34 @@ function filterNews(cat, el) {
 function renderNews() {
   const items = currentCat === 'ALL' ? GSE.news : GSE.news.filter(n => n.category === currentCat);
   const grid = document.getElementById('newsGrid');
-  if (!items || !items.length) { grid.innerHTML = `<div style="color:var(--text-muted);padding:32px;text-align:center">Fetching live news...</div>`; return; }
+  if (!items || !items.length) { grid.innerHTML = `<div style="color:var(--text-muted);padding:32px;text-align:center">No articles in this category right now. Live feeds refresh every 10 minutes.</div>`; return; }
 
+  // Everything below can come from third-party RSS feeds — escape it all
   grid.innerHTML = items.map(n => {
-    const cardCls = n.direction === 'bullish' ? 'bullish-card' : n.direction === 'bearish' ? 'bearish-card' : n.impact === 'macro' ? 'macro-card' : 'neutral-card';
+    const tags = n.tags || [];
+    const isMacro = tags.some(t => t.startsWith('MACRO'));
+    const cardCls = n.direction === 'bullish' ? 'bullish-card' : n.direction === 'bearish' ? 'bearish-card' : isMacro ? 'macro-card' : 'neutral-card';
     const ts = new Date(n.timestamp);
-    const timeStr = ts.toLocaleDateString('en-GH', { day:'numeric', month:'short', year:'numeric' }) + ' · ' + ts.toLocaleTimeString('en-GH', { hour:'2-digit', minute:'2-digit' });
-    const tagHtml = n.tags.map(t => {
+    const timeStr = isNaN(ts) ? '' : ts.toLocaleDateString('en-GH', { day:'numeric', month:'short', year:'numeric' }) + ' · ' + ts.toLocaleTimeString('en-GH', { hour:'2-digit', minute:'2-digit' });
+    const tagHtml = tags.map(t => {
       const isB = t.startsWith('BULLISH');
       const isSe = t.startsWith('BEARISH');
       const isMac = t.startsWith('MACRO');
       const cls = isB ? 'badge-bullish' : isSe ? 'badge-bearish' : isMac ? 'badge-macro' : 'badge-neutral';
-      return `<span class="badge ${cls}" style="font-size:10px">${t}</span>`;
+      return `<span class="badge ${cls}" style="font-size:10px">${escapeHtml(t)}</span>`;
     }).join('');
+    const link = safeUrl(n.link);
 
     return `<div class="news-card ${cardCls}">
       <div class="nc-top">
         <div class="nc-tags">${tagHtml}</div>
-        <div class="nc-meta">${n.source} · ${timeStr}</div>
+        <div class="nc-meta">${escapeHtml(n.source)}${timeStr ? ' · ' + timeStr : ''}</div>
       </div>
-      <div class="nc-headline">${n.headline}</div>
-      <div class="nc-ai">${n.aiInterpretation}</div>
+      <div class="nc-headline">${escapeHtml(n.headline)}</div>
+      <div class="nc-ai">${escapeHtml(n.aiInterpretation)}</div>
       <div class="nc-bottom">
-        <div class="nc-tickers">${n.affectedTickers.map(t => `<span class="nc-ticker-tag">${t}</span>`).join('')}</div>
-        <a href="${n.link}" target="_blank" style="color:var(--emerald);font-size:13px;font-weight:600;text-decoration:none">Read Full Article →</a>
+        <div class="nc-tickers">${(n.affectedTickers || []).map(t => `<span class="nc-ticker-tag">${escapeHtml(t)}</span>`).join('')}</div>
+        ${link ? `<a href="${escapeHtml(link)}" target="_blank" rel="noopener noreferrer" style="color:var(--emerald);font-size:13px;font-weight:600;text-decoration:none">Read Full Article →</a>` : ''}
       </div>
     </div>`;
   }).join('');

@@ -123,9 +123,9 @@
     <h2 class="auth-tagline">Your AI edge on the GSE</h2>
     <p class="auth-sub">Real-time signals, risk profiling, and portfolio allocation — all in one place.</p>
     <div class="auth-stats">
-      <div class="auth-stat-row"><span>Stocks Monitored</span><span class="auth-stat-val">31</span></div>
+      <div class="auth-stat-row"><span>Stocks Monitored</span><span class="auth-stat-val">38</span></div>
       <div class="auth-stat-row"><span>Analysis Engines</span><span class="auth-stat-val">5</span></div>
-      <div class="auth-stat-row"><span>Free Analyses</span><span class="auth-stat-val">5 on signup</span></div>
+      <div class="auth-stat-row"><span>Price History</span><span class="auth-stat-val">Daily closes</span></div>
     </div>
   </div>
 </div>
@@ -142,7 +142,7 @@
     <!-- SIGNUP PANEL -->
     <div class="auth-panel active" id="panelSignup">
       <h2 class="auth-form-title">Get started free</h2>
-      <p class="auth-form-sub">5 free analyses. No card required.</p>
+      <p class="auth-form-sub">Free to use. No card required.</p>
       <button class="google-btn" onclick="handleGoogleSignIn()">
         <svg width="20" height="20" viewBox="0 0 48 48"><path fill="#4285F4" d="M44.5 20H24v8.5h11.8C34.7 33.9 30.1 37 24 37c-7.2 0-13-5.8-13-13s5.8-13 13-13c3.1 0 5.9 1.1 8.1 2.9l6.4-6.4C34.6 4.1 29.6 2 24 2 11.8 2 2 11.8 2 24s9.8 22 22 22c11 0 21-8 21-22 0-1.3-.2-2.7-.5-4z"/></svg>
         Continue with Google
@@ -196,6 +196,7 @@
   </div>
 </div>
 
+<script src="js/market-data.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script>
@@ -234,7 +235,7 @@ function switchTab(tab) {
 }
 
 /* ── Signup ─── */
-function handleSignup(e) {
+async function handleSignup(e) {
   e.preventDefault();
   const name    = document.getElementById('signupName').value.trim();
   const email   = document.getElementById('signupEmail').value.trim();
@@ -244,22 +245,43 @@ function handleSignup(e) {
   errEl.style.display = 'none';
   if (pass !== confirm) { errEl.textContent = 'Passwords do not match.'; errEl.style.display = 'block'; return; }
   if (pass.length < 8)  { errEl.textContent = 'Password must be at least 8 characters.'; errEl.style.display = 'block'; return; }
-  const user = { name, email, createdAt: Date.now() };
-  Auth.saveUser(user);
-  Auth.login(user);
-  localStorage.setItem('gse_usage', JSON.stringify({ count:0, limit:5 }));
-  window.location.href = 'onboarding.html';
+  try {
+    await Auth.register({ name, email, password: pass });
+  } catch (err) {
+    errEl.textContent = err.message; errEl.style.display = 'block'; return;
+  }
+  // A brand-new account starts with no profile, so this goes to onboarding
+  window.location.href = Profile.get() ? 'dashboard.html' : 'onboarding.html';
 }
 
 /* ── Login ─── */
-function handleLogin(e) {
+async function handleLogin(e) {
   e.preventDefault();
   const email = document.getElementById('loginEmail').value.trim();
+  const pass  = document.getElementById('loginPassword').value;
   const errEl = document.getElementById('loginError');
   errEl.style.display = 'none';
-  const stored = Auth.getUser();
-  if (!stored || stored.email !== email) {
+  const known = Auth.getUser(email);
+  // Account from the old version of the app (stored before passwords existed):
+  // the first login sets its password and carries its profile/watchlist/alerts over
+  const legacy = !known && Auth.getLegacyUser(email);
+  if (legacy) {
+    if (pass.length < 8) { errEl.textContent = 'Welcome back! Choose a password of at least 8 characters to secure your account.'; errEl.style.display = 'block'; return; }
+    await Auth.register({ name: legacy.name || 'Investor', email, password: pass });
+    window.location.href = Profile.get() ? 'dashboard.html' : 'onboarding.html';
+    return;
+  }
+  if (!known) {
     errEl.textContent = 'No account found with that email. Please sign up.';
+    errEl.style.display = 'block'; return;
+  }
+  if (!known.passwordHash) {
+    errEl.textContent = 'This account uses Google sign-in. Use "Continue with Google".';
+    errEl.style.display = 'block'; return;
+  }
+  const stored = await Auth.verify(email, pass);
+  if (!stored) {
+    errEl.textContent = 'Incorrect email or password.';
     errEl.style.display = 'block'; return;
   }
   Auth.login(stored);
@@ -267,13 +289,9 @@ function handleLogin(e) {
   window.location.href = profile ? 'dashboard.html' : 'onboarding.html';
 }
 
-/* ── Google (UI only) ─── */
-function handleGoogleSignIn() {
-  const name = 'Demo User'; const email = 'demo@stocksense.ai';
-  const user = { name, email, createdAt: Date.now(), google: true };
-  Auth.saveUser(user); Auth.login(user);
-  if (!localStorage.getItem('gse_usage'))
-    localStorage.setItem('gse_usage', JSON.stringify({count:0,limit:5}));
+/* ── Google (UI only — signs into a shared demo account, no real Google OAuth) ─── */
+async function handleGoogleSignIn() {
+  await Auth.register({ name: 'Demo User', email: 'demo@stocksense.ai', google: true });
   const profile = Profile.get();
   window.location.href = profile ? 'dashboard.html' : 'onboarding.html';
 }

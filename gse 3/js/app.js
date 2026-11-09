@@ -1,27 +1,161 @@
 /* ================================================================
    GSE StockSense AI — App Utilities
-   Auth, Session, Usage Counter, Paywall, Toast, Sidebar
+   Auth, Session, Toast, Profile, Prefs, Watchlist, Alerts, Sidebar
    ================================================================ */
 
+/* ── HTML escaping (for any user- or network-supplied text) ───── */
+function escapeHtml(str) {
+  return String(str ?? '').replace(/[&<>"']/g, c => ({ '&':'&amp;', '<':'&lt;', '>':'&gt;', '"':'&quot;', "'":'&#39;' }[c]));
+}
+
+/* Only allow http(s) links from external feeds */
+function safeUrl(url) {
+  try {
+    const u = new URL(url, window.location.href);
+    return (u.protocol === 'http:' || u.protocol === 'https:') ? u.href : null;
+  } catch { return null; }
+}
+
+/* ── Per-user storage (keys are namespaced by the logged-in email) */
+const UserStore = {
+  NAMES: ['profile', 'watchlist', 'alerts', 'prefs'],
+
+  prefix(email) { return `gse_u:${String(email || '').toLowerCase()}:`; },
+
+  currentEmail() {
+    const s = Auth.getSession();
+    return s ? s.email : null;
+  },
+
+  get(name, fallback = null) {
+    const email = this.currentEmail();
+    if (!email) return fallback;
+    try {
+      const v = JSON.parse(localStorage.getItem(this.prefix(email) + name));
+      return v ?? fallback;
+    } catch { return fallback; }
+  },
+
+  set(name, value) {
+    const email = this.currentEmail();
+    if (!email) return;
+    localStorage.setItem(this.prefix(email) + name, JSON.stringify(value));
+  },
+
+  remove(name) {
+    const email = this.currentEmail();
+    if (email) localStorage.removeItem(this.prefix(email) + name);
+  },
+
+  renameUser(oldEmail, newEmail) {
+    const oldP = this.prefix(oldEmail), newP = this.prefix(newEmail);
+    Object.keys(localStorage).filter(k => k.startsWith(oldP)).forEach(k => {
+      localStorage.setItem(newP + k.slice(oldP.length), localStorage.getItem(k));
+      localStorage.removeItem(k);
+    });
+  },
+
+  clearUser(email) {
+    const p = this.prefix(email);
+    Object.keys(localStorage).filter(k => k.startsWith(p)).forEach(k => localStorage.removeItem(k));
+  },
+
+  // Move data saved by the old single-user version (gse_profile, gse_watchlist, ...) into this user's namespace
+  migrateLegacy(email) {
+    let legacyUser = null;
+    try { legacyUser = JSON.parse(localStorage.getItem('gse_user')); } catch {}
+    if (!legacyUser || String(legacyUser.email).toLowerCase() !== String(email).toLowerCase()) return;
+    this.NAMES.forEach(name => {
+      const v = localStorage.getItem('gse_' + name);
+      if (v !== null) localStorage.setItem(this.prefix(email) + name, v);
+    });
+    ['gse_user', 'gse_profile', 'gse_usage', 'gse_subscription', 'gse_watchlist', 'gse_alerts'].forEach(k => localStorage.removeItem(k));
+  },
+};
+
 /* ── Auth ─────────────────────────────────────────────────────── */
+/* NOTE: this is a browser-only demo. Real accounts need a server — anything
+   stored in localStorage can be read and edited by the person using the browser. */
 const Auth = {
-  KEY: 'gse_user',
+  USERS_KEY: 'gse_users',
   SESSION_KEY: 'gse_session',
 
-  getUser() {
-    try { return JSON.parse(localStorage.getItem(this.KEY)) || null; } catch { return null; }
+  getUsers() {
+    try { return JSON.parse(localStorage.getItem(this.USERS_KEY)) || {}; } catch { return {}; }
+  },
+
+  saveUsers(users) {
+    localStorage.setItem(this.USERS_KEY, JSON.stringify(users));
+  },
+
+  getUser(email) {
+    return this.getUsers()[String(email || '').toLowerCase()] || null;
+  },
+
+  saveUser(user) {
+    const users = this.getUsers();
+    users[user.email.toLowerCase()] = user;
+    this.saveUsers(users);
+  },
+
+  async hashPassword(password, salt) {
+    const text = `${salt}:${password}`;
+    if (window.crypto && crypto.subtle) {
+      const buf = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(text));
+      return Array.from(new Uint8Array(buf)).map(b => b.toString(16).padStart(2, '0')).join('');
+    }
+    // Fallback for non-secure contexts (no Web Crypto)
+    let h = 5381;
+    for (let i = 0; i < text.length; i++) h = ((h << 5) + h + text.charCodeAt(i)) >>> 0;
+    return 'djb2-' + h.toString(16);
+  },
+
+  newSalt() {
+    const arr = new Uint8Array(16);
+    (window.crypto || {}).getRandomValues ? crypto.getRandomValues(arr) : arr.forEach((_, i) => arr[i] = Math.random() * 256);
+    return Array.from(arr).map(b => b.toString(16).padStart(2, '0')).join('');
+  },
+
+  // Throws an Error with a user-facing message if the email is taken
+  async register({ name, email, password, google = false }) {
+    email = email.trim().toLowerCase();
+    if (this.getUser(email) && !google) throw new Error('An account with that email already exists. Please log in.');
+    const existing = this.getUser(email);
+    const user = existing || { name, email, createdAt: Date.now() };
+    if (google) user.google = true;
+    if (password) {
+      user.salt = this.newSalt();
+      user.passwordHash = await this.hashPassword(password, user.salt);
+    }
+    this.saveUser(user);
+    UserStore.migrateLegacy(email);
+    this.login(user);
+    return user;
+  },
+
+  // Account saved by the old single-user version (no password), if it matches this email
+  getLegacyUser(email) {
+    try {
+      const u = JSON.parse(localStorage.getItem('gse_user'));
+      return u && String(u.email).toLowerCase() === String(email).trim().toLowerCase() ? u : null;
+    } catch { return null; }
+  },
+
+  // Returns the user on success, or null if the email/password is wrong
+  async verify(email, password) {
+    const user = this.getUser(email);
+    if (!user || !user.passwordHash) return null;
+    const hash = await this.hashPassword(password, user.salt);
+    return hash === user.passwordHash ? user : null;
+  },
+
+  login(user) {
+    // Never copy the password hash into the session
+    localStorage.setItem(this.SESSION_KEY, JSON.stringify({ name: user.name, email: user.email, loggedInAt: Date.now() }));
   },
 
   getSession() {
     try { return JSON.parse(localStorage.getItem(this.SESSION_KEY)) || null; } catch { return null; }
-  },
-
-  saveUser(user) {
-    localStorage.setItem(this.KEY, JSON.stringify(user));
-  },
-
-  login(user) {
-    localStorage.setItem(this.SESSION_KEY, JSON.stringify({ ...user, loggedInAt: Date.now() }));
   },
 
   logout() {
@@ -29,8 +163,10 @@ const Auth = {
     window.location.href = 'index.html';
   },
 
+  // Returns false (and redirects) if there is no valid session
   requireAuth() {
-    if (!this.getSession()) {
+    if (!this.isLoggedIn()) {
+      localStorage.removeItem(this.SESSION_KEY);
       window.location.href = 'login.html';
       return false;
     }
@@ -38,147 +174,34 @@ const Auth = {
   },
 
   isLoggedIn() {
-    return !!this.getSession();
-  },
-};
-
-/* ── Usage Counter ────────────────────────────────────────────── */
-const Usage = {
-  KEY: 'gse_usage',
-  FREE_LIMIT: 5,
-
-  get() {
-    try { return JSON.parse(localStorage.getItem(this.KEY)) || { count: 0, limit: this.FREE_LIMIT }; } catch { return { count: 0, limit: this.FREE_LIMIT }; }
+    const s = this.getSession();
+    return !!(s && s.email && this.getUser(s.email));
   },
 
-  isPremium() {
-    try {
-      const sub = JSON.parse(localStorage.getItem('gse_subscription'));
-      return sub && sub.isPremium === true;
-    } catch { return false; }
+  // Update name/email; migrates the user's stored data when the email changes
+  updateAccount({ name, email }) {
+    const session = this.getSession();
+    const oldEmail = session.email.toLowerCase();
+    const newEmail = email.trim().toLowerCase();
+    if (newEmail !== oldEmail && this.getUser(newEmail)) throw new Error('Another account already uses that email.');
+    const users = this.getUsers();
+    const user = { ...users[oldEmail], name, email: newEmail };
+    delete users[oldEmail];
+    users[newEmail] = user;
+    this.saveUsers(users);
+    if (newEmail !== oldEmail) UserStore.renameUser(oldEmail, newEmail);
+    this.login(user);
+    return user;
   },
 
-  remaining() {
-    if (this.isPremium()) return Infinity;
-    const u = this.get();
-    return Math.max(0, u.limit - u.count);
-  },
-
-  canAnalyze() {
-    return this.isPremium() || this.remaining() > 0;
-  },
-
-  increment() {
-    if (this.isPremium()) return;
-    const u = this.get();
-    u.count = Math.min(u.count + 1, this.FREE_LIMIT + 1);
-    localStorage.setItem(this.KEY, JSON.stringify(u));
-    this.updateAllCounters();
-  },
-
-  // Returns true if analysis allowed, false if paywalled
-  checkAndConsume() {
-    if (this.canAnalyze()) {
-      this.increment();
-      this.updateAllCounters();
-      return true;
-    } else {
-      Paywall.show();
-      return false;
-    }
-  },
-
-  updateAllCounters() {
-    const rem = this.remaining();
-    const isPremium = this.isPremium();
-
-    // Sidebar counter
-    document.querySelectorAll('[data-usage-remaining]').forEach(el => {
-      el.textContent = isPremium ? 'Unlimited' : `${rem} remaining`;
-    });
-    document.querySelectorAll('[data-usage-bar]').forEach(el => {
-      el.style.width = isPremium ? '100%' : `${(rem / this.FREE_LIMIT) * 100}%`;
-      el.style.background = rem <= 1 ? 'var(--red)' : rem <= 2 ? 'var(--amber)' : '';
-    });
-
-    // Topbar pill
-    document.querySelectorAll('[data-usage-pill]').forEach(el => {
-      if (isPremium) {
-        el.textContent = 'Premium';
-        el.className = 'usage-pill';
-      } else {
-        el.textContent = `${rem} of ${this.FREE_LIMIT} free`;
-        el.className = `usage-pill ${rem <= 1 ? 'critical' : rem <= 2 ? 'warning' : ''}`;
-      }
-    });
-  },
-};
-
-/* ── Paywall ─────────────────────────────────────────────────── */
-const Paywall = {
-  show() {
-    if (document.getElementById('paywallModal')) return;
-    const modal = document.createElement('div');
-    modal.id = 'paywallModal';
-    modal.className = 'modal-overlay';
-    modal.innerHTML = `
-      <div class="modal-box" role="dialog" aria-modal="true" aria-label="Upgrade to continue">
-        <div style="text-align:center;margin-bottom:8px;">
-          <svg width="48" height="48" viewBox="0 0 48 48" fill="none" style="margin:0 auto 16px">
-            <path d="M24 4L44 16V32L24 44L4 32V16L24 4Z" stroke="var(--gold)" stroke-width="1.5" fill="var(--gold-glow)"/>
-            <path d="M24 12L36 19V32L24 39L12 32V19L24 12Z" fill="rgba(201,168,76,0.15)" stroke="var(--gold)" stroke-width="1"/>
-          </svg>
-          <h2 style="text-align:center">You've explored everything free.</h2>
-          <p style="text-align:center">Upgrade to keep your edge on the Ghana Stock Exchange.</p>
-        </div>
-        <div class="modal-plans">
-          <div class="plan-card" id="planMonthly">
-            <div class="plan-name">Monthly</div>
-            <div class="plan-price">GHS 100</div>
-            <div class="plan-period">per month</div>
-            <ul style="list-style:none;text-align:left;font-size:13px;color:var(--text-secondary);margin-bottom:20px;display:flex;flex-direction:column;gap:6px">
-              <li>✓ Unlimited analyses</li>
-              <li>✓ Real-time AI signals</li>
-              <li>✓ Portfolio allocator</li>
-              <li>✓ News monitor</li>
-              <li>✓ Alert system</li>
-            </ul>
-            <button class="btn btn-secondary btn-lg" onclick="Paywall.upgrade('monthly')">Choose Monthly</button>
-          </div>
-          <div class="plan-card featured" id="planYearly">
-            <div class="best-value">Best Value</div>
-            <div class="plan-name">Yearly</div>
-            <div class="plan-price">GHS 900</div>
-            <div class="plan-period">per year</div>
-            <div class="plan-savings">Save GHS 300 vs monthly</div>
-            <ul style="list-style:none;text-align:left;font-size:13px;color:var(--text-secondary);margin-bottom:20px;display:flex;flex-direction:column;gap:6px">
-              <li>✓ Everything in monthly</li>
-              <li>✓ Priority signal alerts</li>
-              <li>✓ Advanced macro dashboard</li>
-              <li>✓ Downloadable PDF reports</li>
-              <li>✓ Early feature access</li>
-            </ul>
-            <button class="btn btn-gold btn-lg" onclick="Paywall.upgrade('yearly')">Choose Yearly</button>
-          </div>
-        </div>
-        <p style="text-align:center;font-size:12px;color:var(--text-muted)">Cancel anytime. No hidden fees.</p>
-        <button onclick="Paywall.close()" style="position:absolute;top:20px;right:20px;color:var(--text-muted);font-size:24px;line-height:1;background:none;border:none;cursor:pointer">×</button>
-      </div>`;
-    document.body.appendChild(modal);
-    modal.addEventListener('click', e => { if (e.target === modal) Paywall.close(); });
-  },
-
-  close() {
-    const m = document.getElementById('paywallModal');
-    if (m) m.remove();
-  },
-
-  upgrade(plan) {
-    const sub = { isPremium: true, plan, startedAt: Date.now() };
-    localStorage.setItem('gse_subscription', JSON.stringify(sub));
-    this.close();
-    Usage.updateAllCounters();
-    Toast.show('success', `Upgraded to ${plan === 'monthly' ? 'Monthly' : 'Yearly'} Plan! Welcome to StockSense Premium.`);
+  deleteAccount() {
+    const s = this.getSession();
+    if (!s) return;
+    UserStore.clearUser(s.email);
+    const users = this.getUsers();
+    delete users[s.email.toLowerCase()];
+    this.saveUsers(users);
+    localStorage.removeItem(this.SESSION_KEY);
   },
 };
 
@@ -202,9 +225,9 @@ const Toast = {
     const colors = { success: 'var(--emerald)', warning: 'var(--amber)', error: 'var(--red)', info: 'var(--text-secondary)' };
     const toast = document.createElement('div');
     toast.className = `toast ${type}`;
-    toast.innerHTML = `
-      <span style="font-size:18px;color:${colors[type]}">${icons[type]}</span>
-      <span>${message}</span>`;
+    toast.innerHTML = `<span style="font-size:18px;color:${colors[type]}">${icons[type]}</span><span></span>`;
+    // Messages often contain user input (tickers, names) — never parse them as HTML
+    toast.lastElementChild.textContent = message;
     this.container.appendChild(toast);
     setTimeout(() => {
       toast.style.animation = 'slideOutRight 0.3s ease forwards';
@@ -216,14 +239,12 @@ const Toast = {
 
 /* ── Profile ─────────────────────────────────────────────────── */
 const Profile = {
-  KEY: 'gse_profile',
-
   get() {
-    try { return JSON.parse(localStorage.getItem(this.KEY)) || null; } catch { return null; }
+    return UserStore.get('profile', null);
   },
 
   save(profileData) {
-    localStorage.setItem(this.KEY, JSON.stringify(profileData));
+    UserStore.set('profile', profileData);
   },
 
   getRiskLabel() {
@@ -234,6 +255,130 @@ const Profile = {
   getCapital() {
     const p = this.get();
     return p ? (p.capitalAmount || 5000) : 5000;
+  },
+};
+
+/* ── Preferences ─────────────────────────────────────────────── */
+const Prefs = {
+  DEFAULTS: { notifSignals: true, notifRSI: true, notifNews: false, showRSI: true, showCharts: true },
+
+  get() {
+    return { ...this.DEFAULTS, ...(UserStore.get('prefs', {}) || {}) };
+  },
+
+  save(prefs) {
+    UserStore.set('prefs', { ...this.get(), ...prefs });
+  },
+};
+
+/* ── Watchlist ───────────────────────────────────────────────── */
+const Watchlist = {
+  DEFAULT: ['MTNGH', 'GCB', 'BOPP'],
+
+  get() {
+    const list = UserStore.get('watchlist', null);
+    return Array.isArray(list) ? list : this.DEFAULT.slice();
+  },
+
+  save(list) {
+    UserStore.set('watchlist', list);
+  },
+
+  clear() {
+    UserStore.set('watchlist', []);
+  },
+};
+
+/* ── Alerts (stored per user, evaluated whenever market data updates) ── */
+const Alerts = {
+  get() {
+    let list = UserStore.get('alerts', null);
+    if (!Array.isArray(list)) {
+      list = this.defaults();
+      this.save(list);
+    }
+    return list;
+  },
+
+  save(list) {
+    UserStore.set('alerts', list);
+  },
+
+  defaults() {
+    const today = new Date().toISOString().split('T')[0];
+    return [
+      { id:1, ticker:'MTNGH',  type:'RSI_ABOVE',     threshold:70,   active:true, created:today, triggered:false },
+      { id:2, ticker:'GCB',    type:'RSI_BELOW',     threshold:35,   active:true, created:today, triggered:false },
+      { id:3, ticker:'GOIL',   type:'PRICE_BELOW',   threshold:5.00, active:true, created:today, triggered:false },
+      { id:4, ticker:'ACCESS', type:'SIGNAL_CHANGE', threshold:0,    active:true, created:today, triggered:false, baseline: (GSE.getStock('ACCESS') || {}).signal },
+    ];
+  },
+
+  create(ticker, type, threshold) {
+    const s = GSE.getStock(ticker);
+    const alert = { id: Date.now(), ticker, type, threshold, active: true, created: new Date().toISOString().split('T')[0], triggered: false };
+    if (type === 'SIGNAL_CHANGE') alert.baseline = s ? s.signal : null;
+    const list = this.get();
+    list.unshift(alert);
+    this.save(list);
+    this.check();
+    return alert;
+  },
+
+  describe(a) {
+    const labels = {
+      RSI_ABOVE:   `RSI rises above ${a.threshold}`,
+      RSI_BELOW:   `RSI falls below ${a.threshold}`,
+      PRICE_ABOVE: `Price rises above GHS ${a.threshold}`,
+      PRICE_BELOW: `Price falls below GHS ${a.threshold}`,
+      SIGNAL_CHANGE: a.baseline ? `Signal changes from ${a.baseline}` : 'Signal changes (BUY/SELL/HOLD)',
+    };
+    return labels[a.type] || a.type;
+  },
+
+  isMet(a, s) {
+    switch (a.type) {
+      case 'RSI_ABOVE':     return s.rsi > a.threshold;
+      case 'RSI_BELOW':     return s.rsi < a.threshold;
+      case 'PRICE_ABOVE':   return s.price > a.threshold;
+      case 'PRICE_BELOW':   return s.price < a.threshold;
+      case 'SIGNAL_CHANGE': return !!a.baseline && s.signal !== a.baseline;
+      default: return false;
+    }
+  },
+
+  // Re-arm a triggered alert (signal alerts take the current signal as the new baseline)
+  rearm(id) {
+    const list = this.get();
+    const a = list.find(x => x.id === id);
+    if (!a) return;
+    a.triggered = false;
+    delete a.triggeredAt;
+    if (a.type === 'SIGNAL_CHANGE') { const s = GSE.getStock(a.ticker); a.baseline = s ? s.signal : a.baseline; }
+    this.save(list);
+  },
+
+  check() {
+    if (!Auth.isLoggedIn()) return;
+    const list = this.get();
+    const prefs = Prefs.get();
+    let changed = false;
+    list.forEach(a => {
+      if (!a.active || a.triggered) return;
+      const s = GSE.getStock(a.ticker);
+      if (!s) return;
+      if (a.type === 'SIGNAL_CHANGE' && !a.baseline) { a.baseline = s.signal; changed = true; return; }
+      if (!this.isMet(a, s)) return;
+      a.triggered = true;
+      a.triggeredAt = Date.now();
+      changed = true;
+      const wantsToast = a.type.startsWith('RSI') ? prefs.notifRSI : prefs.notifSignals;
+      if (wantsToast) Toast.show('warning', `Alert triggered: ${a.ticker} — ${this.describe(a)}`);
+    });
+    if (changed) {
+      this.save(list);
+      window.dispatchEvent(new CustomEvent('gseAlertsUpdated'));
+    }
   },
 };
 
@@ -248,7 +393,6 @@ const Sidebar = {
     { href:'news.html',      label:'News Monitor', icon:'<path d="M4 22h16a2 2 0 0 0 2-2V4a2 2 0 0 0-2-2H8a2 2 0 0 0-2 2v2"/><rect x="2" y="8" width="8" height="14"/>' },
     { href:'chat.html',      label:'AI Analyst', icon:'<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' },
     { hr: true },
-    { href:'pricing.html',   label:'Pricing', icon:'<circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/>' },
     { href:'settings.html',  label:'Settings', icon:'<circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a1 1 0 0 0-1.41 0l-1.1 1.1a7 7 0 0 0-9.12 9.12l-1.1 1.1a1 1 0 0 0 0 1.41l.7.7a1 1 0 0 0 1.41 0l1.1-1.1a7 7 0 0 0 9.12-9.12l1.1-1.1a1 1 0 0 0 0-1.41z"/>' },
   ],
 
@@ -260,10 +404,9 @@ const Sidebar = {
 
   render(activePage) {
     const user = Auth.getSession() || { name: 'Investor' };
+    const displayName = escapeHtml(user.name || 'Investor');
+    const initial = escapeHtml((user.name || 'I')[0].toUpperCase());
     const profile = Profile.get();
-    const usage = Usage.get();
-    const isPremium = Usage.isPremium();
-    const rem = Usage.remaining();
 
     const html = `
       <aside class="sidebar" id="appSidebar">
@@ -282,20 +425,11 @@ const Sidebar = {
           }).join('')}
         </nav>
         <div class="sidebar-footer">
-          ${!isPremium ? `<div class="usage-counter">
-            <div class="usage-label">
-              <span>Free Analyses</span>
-              <span data-usage-remaining>${rem} remaining</span>
-            </div>
-            <div class="usage-bar"><div class="usage-bar-fill" data-usage-bar style="width:${(rem/5)*100}%"></div></div>
-          </div>` : `<div class="usage-counter" style="border-color:var(--gold);background:var(--gold-glow)">
-            <div class="usage-label"><span style="color:var(--gold)">Premium Active</span><span style="color:var(--gold)">Unlimited</span></div>
-          </div>`}
           <div style="position:relative">
             <div id="profileTrigger" onclick="Sidebar.toggleDropdown(event)" style="display:flex;align-items:center;gap:10px;padding:8px 10px;border-radius:var(--radius-sm);cursor:pointer;transition:background 0.2s ease;user-select:none" onmouseover="this.style.background='rgba(255,255,255,0.05)'" onmouseout="this.style.background='transparent'">
-              <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--emerald));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--bg-deep);flex-shrink:0">${(user.name||'I')[0].toUpperCase()}</div>
+              <div style="width:32px;height:32px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--emerald));display:flex;align-items:center;justify-content:center;font-size:13px;font-weight:600;color:var(--bg-deep);flex-shrink:0">${initial}</div>
               <div style="overflow:hidden;flex:1;min-width:0">
-                <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${user.name||'Investor'}</div>
+                <div style="font-size:13px;font-weight:500;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${displayName}</div>
                 <div style="font-size:11px;color:var(--text-muted)">${profile ? profile.riskProfile.charAt(0).toUpperCase()+profile.riskProfile.slice(1) : 'Set profile'}</div>
               </div>
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--text-muted);flex-shrink:0;transition:transform 0.2s ease" id="profileChevron"><polyline points="6 9 12 15 18 9"/></svg>
@@ -413,12 +547,12 @@ const Sidebar = {
     const html = `
       <div style="position:relative; margin-left: 12px;" id="topbarProfileWrapper">
         <div id="topbarTrigger" onclick="Sidebar.toggleTopbarDropdown(event)" style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--emerald));display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--bg-deep);cursor:pointer;user-select:none;transition:transform 0.2s ease" onmouseover="this.style.transform='scale(1.05)'" onmouseout="this.style.transform='scale(1)'" title="Profile Menu">
-          ${(user.name||'I')[0].toUpperCase()}
+          ${escapeHtml((user.name||'I')[0].toUpperCase())}
         </div>
         <!-- Topbar Dropdown -->
         <div id="topbarDropdown" style="display:none;position:absolute;top:calc(100% + 12px);right:0;width:180px;background:var(--bg-surface);border:1px solid var(--border);border-radius:var(--radius-md);box-shadow:0 8px 32px rgba(0,0,0,0.5);overflow:hidden;z-index:999;backdrop-filter:blur(20px);-webkit-backdrop-filter:blur(20px)">
           <div style="padding:12px 16px;border-bottom:1px solid var(--border)">
-            <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${user.name||'Investor'}</div>
+            <div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escapeHtml(user.name||'Investor')}</div>
           </div>
           <a href="settings.html" style="display:flex;align-items:center;gap:10px;padding:12px 16px;font-size:13px;font-weight:500;color:var(--text-primary);text-decoration:none;transition:background 0.15s ease;font-family:var(--font-body)" onmouseover="this.style.background='rgba(255,255,255,0.06)'" onmouseout="this.style.background='transparent'">
             <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
@@ -478,8 +612,10 @@ function initApp(activePage) {
   // Inject topbar profile dropdown
   Sidebar.injectTopbarAvatar();
 
-  // Update topbar usage pill
-  Usage.updateAllCounters();
+  // Live market data + alert evaluation (only on app pages, not landing/login)
+  Alerts.check();
+  window.addEventListener('gseDataUpdated', () => Alerts.check());
+  if (GSE.startLiveUpdates) GSE.startLiveUpdates();
 }
 
 /* ── Number formatting helpers ───────────────────────────────── */
@@ -511,16 +647,4 @@ function drawSparkline(canvas, data, color = '#00C896') {
   ctx.lineTo(w, h); ctx.lineTo(0, h); ctx.closePath();
   ctx.fillStyle = grad;
   ctx.fill();
-}
-
-/* ── Generate mock price history ──────────────────────────────── */
-function mockPriceHistory(basePrice, days = 30, signal = 'HOLD') {
-  const prices = [basePrice];
-  const trend = signal === 'BUY' ? 0.003 : signal === 'SELL' ? -0.003 : 0;
-  for (let i = 1; i < days; i++) {
-    const prev = prices[i - 1];
-    const change = (Math.random() - 0.5) * 0.02 + trend;
-    prices.push(Math.max(0.01, prev * (1 + change)));
-  }
-  return prices;
 }

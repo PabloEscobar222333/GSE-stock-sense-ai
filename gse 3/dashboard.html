@@ -128,7 +128,6 @@
         <div class="topbar-sub" id="pageSubtitle">Your personalised market overview</div>
       </div>
       <div class="topbar-right">
-        <div class="usage-pill" data-usage-pill>3 of 5 free</div>
         <div style="width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,var(--gold),var(--emerald));display:flex;align-items:center;justify-content:center;font-size:14px;font-weight:700;color:var(--bg-deep);cursor:pointer;" id="topbarAvatar">K</div>
       </div>
     </div>
@@ -178,14 +177,14 @@
             <div style="margin-bottom:12px">
               <div class="alloc-header">
                 <div>
-                  <div class="label" style="margin-bottom:4px">Top BUY for your profile</div>
+                  <div class="label" style="margin-bottom:4px" id="allocLabel">Top BUY for your profile</div>
                   <div class="alloc-ticker" id="allocTicker">MTNGH</div>
                 </div>
-                <span class="badge badge-buy">BUY</span>
+                <span class="badge badge-buy" id="allocBadge">BUY</span>
               </div>
             </div>
             <div id="allocDetails"><!-- Populated by JS --></div>
-            <div class="alloc-warning">Never put more than 10–15% in one stock. Diversify across 6–10 stocks for your profile.</div>
+            <div class="alloc-warning" id="allocWarning">Diversify across 6–10 stocks for your profile.</div>
           </div>
 
           <!-- Macro Snapshot -->
@@ -194,6 +193,7 @@
               <div class="widget-title">Ghana Macro Snapshot</div>
             </div>
             <div class="macro-grid" id="macroGrid"><!-- Populated by JS --></div>
+            <div id="macroSources" style="font-size:11px;color:var(--text-muted);margin-top:10px"></div>
           </div>
 
           <!-- Watchlist -->
@@ -216,6 +216,7 @@
   <div id="mobileNavHolder"></div>
 </div>
 
+<script src="js/market-data.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script>
@@ -225,6 +226,10 @@ if (!Auth.requireAuth()) throw new Error('Not authenticated');
 const user    = Auth.getSession();
 const profile = Profile.get() || { riskProfile:'moderate', capitalAmount:5000, sectors:[] };
 const rules   = GSE.profileRules[profile.riskProfile] || GSE.profileRules.moderate;
+const prefs   = Prefs.get();
+
+// Stock shown in the allocation widget — kept across live data refreshes
+let allocTicker = (GSE.getSignalStocks('BUY', profile.riskProfile)[0] || GSE.stocks[0] || {}).ticker;
 
 try { initApp('dashboard.html'); } catch(e) { console.warn('initApp:', e); }
 
@@ -232,7 +237,7 @@ try { initApp('dashboard.html'); } catch(e) { console.warn('initApp:', e); }
 function runDashboardRenders() {
   try { renderSignalFeed(); }           catch(e) { console.error('renderSignalFeed:', e); }
   try { renderMacro(); }                catch(e) { console.warn('renderMacro:', e); }
-  try { renderAllocation(rules.topPicks[0]); } catch(e) { console.warn('renderAllocation:', e); }
+  try { renderAllocation(allocTicker); } catch(e) { console.warn('renderAllocation:', e); }
   try { loadWatchlist(); }              catch(e) { console.warn('loadWatchlist:', e); }
 }
 
@@ -244,6 +249,7 @@ if (document.readyState === 'loading') {
 
 // React to live data updates
 window.addEventListener('gseDataUpdated', runDashboardRenders);
+window.addEventListener('gseMacroUpdated', () => { try { renderMacro(); } catch(e) { console.warn('renderMacro:', e); } });
 
 
 /* ── Personalize UI ──────────────────────────────────────────── */
@@ -282,8 +288,8 @@ function renderSignalFeed() {
   if (activeFilter !== 'ALL') {
     stocks = stocks.filter(s => s.signal === activeFilter);
   }
-  // Sort by fundamental score descending
-  stocks.sort((a, b) => b.fundamentalScore - a.fundamentalScore);
+  // Sort by signal score descending
+  stocks.sort((a, b) => b.score - a.score);
 
   if (!stocks || stocks.length === 0) {
     feed.innerHTML = `<div style="padding:24px;text-align:center;color:var(--text-muted)">No stocks match this filter.</div>`;
@@ -296,38 +302,40 @@ function renderSignalFeed() {
     const signStr   = s.change > 0 ? `+${s.change}%` : s.change < 0 ? `${s.change}%` : '0.00%';
     const badgeCls  = s.signal === 'BUY' ? 'badge-buy' : s.signal === 'SELL' ? 'badge-sell' : 'badge-hold';
     const rsiColor  = s.rsi > 70 ? 'var(--red)' : s.rsi < 35 ? 'var(--emerald)' : 'var(--text-primary)';
-    const scoreColor = s.fundamentalScore >= 70 ? 'var(--emerald)' : s.fundamentalScore >= 50 ? 'var(--amber)' : 'var(--red)';
+    const scoreColor = s.score >= 70 ? 'var(--emerald)' : s.score >= 50 ? 'var(--amber)' : 'var(--red)';
 
     return `<div class="signal-card ${cls}" onclick="openSignalDetail('${s.ticker}')">
       <div>
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:4px">
           <span class="sc-ticker">${s.ticker}</span>
           <span class="badge ${badgeCls}">${s.signal}</span>
+          ${s.thinlyTraded ? '<span class="sc-meta-label" title="Price rarely changes — few trades in the last 60 sessions">Thinly traded</span>' : ''}
         </div>
-        <div class="sc-name">${s.name}</div>
+        <div class="sc-name">${escapeHtml(s.name)}</div>
         <div class="sc-meta">
-          <div class="sc-meta-item"><span class="sc-meta-label">RSI</span><span class="sc-meta-val" style="color:${rsiColor}">${s.rsi}</span></div>
-          <div class="sc-meta-item"><span class="sc-meta-label">P/E</span><span class="sc-meta-val">${s.pe}x</span></div>
-          <div class="sc-meta-item"><span class="sc-meta-label">Div Yield</span><span class="sc-meta-val">${s.divYield}%</span></div>
+          ${prefs.showRSI ? `<div class="sc-meta-item"><span class="sc-meta-label">RSI</span><span class="sc-meta-val" style="color:${rsiColor}">${s.rsi}</span></div>` : ''}
+          <div class="sc-meta-item"><span class="sc-meta-label">3M</span><span class="sc-meta-val" style="color:${(s.ret3m||0)>=0?'var(--emerald)':'var(--red)'}">${GSE.fmtPct(s.ret3m)}</span></div>
+          <div class="sc-meta-item"><span class="sc-meta-label">1Y</span><span class="sc-meta-val" style="color:${(s.ret1y||0)>=0?'var(--emerald)':'var(--red)'}">${GSE.fmtPct(s.ret1y)}</span></div>
           <div class="sc-meta-item"><span class="sc-meta-label">Score</span>
-            <div class="sc-score-wrap"><div class="sc-score-bar"><div class="sc-score-fill" style="width:${s.fundamentalScore}%;background:${scoreColor}"></div></div><span class="sc-meta-val">${s.fundamentalScore}</span></div>
+            <div class="sc-score-wrap"><div class="sc-score-bar"><div class="sc-score-fill" style="width:${s.score}%;background:${scoreColor}"></div></div><span class="sc-meta-val">${s.score}</span></div>
           </div>
         </div>
       </div>
       <div class="sc-right">
         <div class="sc-price">GHS ${s.price.toFixed(2)}</div>
         <div class="sc-change" style="color:${chgColor}">${signStr}</div>
-        <canvas class="sc-chart" id="chart-${s.ticker}" width="100" height="36"></canvas>
+        ${prefs.showCharts ? `<canvas class="sc-chart" id="chart-${s.ticker}" width="100" height="36"></canvas>` : ''}
       </div>
     </div>`;
   }).join('');
 
-  // Draw sparklines after DOM is updated
+  // Draw sparklines (last 30 real daily closes) after DOM is updated
+  if (!prefs.showCharts) return;
   requestAnimationFrame(() => {
     stocks.slice(0, 8).forEach(s => {
       const cv = document.getElementById(`chart-${s.ticker}`);
-      if (cv && typeof drawSparkline === 'function' && typeof mockPriceHistory === 'function') {
-        const hist = mockPriceHistory(s.price, 20, s.signal);
+      const hist = GSE.priceSeries(s).slice(-30);
+      if (cv && hist.length > 1) {
         const col  = s.signal === 'BUY' ? '#00C896' : s.signal === 'SELL' ? '#FF4560' : '#F5A623';
         drawSparkline(cv, hist, col);
       }
@@ -337,10 +345,9 @@ function renderSignalFeed() {
 
 /* ── Signal Detail (clicks on card prompt analysis) ─────────── */
 function openSignalDetail(ticker) {
-  if (!Usage.checkAndConsume()) return;
   const s = GSE.getStock(ticker);
   if (!s) return;
-  Toast.show('success', `Analysing ${ticker}... Signal: ${s.signal}. RSI ${s.rsi}. Score ${s.fundamentalScore}/100.`);
+  Toast.show('success', `Analysing ${ticker}... Signal: ${s.signal}. RSI ${s.rsi}. Score ${s.score}/100.`);
   // Update allocation widget for this stock
   renderAllocation(ticker);
 }
@@ -349,7 +356,17 @@ function openSignalDetail(ticker) {
 function renderAllocation(ticker) {
   const alloc = GSE.calcAllocation(ticker, profile.capitalAmount || 5000, profile.riskProfile);
   if (!alloc) return;
+  const s = GSE.getStock(ticker);
+  allocTicker = ticker;
   document.getElementById('allocTicker').textContent = ticker;
+  document.getElementById('allocTicker').style.color = s.signal === 'BUY' ? 'var(--emerald)' : s.signal === 'SELL' ? 'var(--red)' : 'var(--amber)';
+  const badge = document.getElementById('allocBadge');
+  badge.textContent = s.signal;
+  badge.className = 'badge ' + (s.signal === 'BUY' ? 'badge-buy' : s.signal === 'SELL' ? 'badge-sell' : 'badge-hold');
+  document.getElementById('allocLabel').textContent = s.signal === 'BUY' ? 'BUY for your profile' : `Selected stock — signal is ${s.signal}`;
+  document.getElementById('allocWarning').textContent = s.signal === 'SELL'
+    ? `${ticker} has a SELL signal — this shows the maximum position size, not a recommendation to buy.`
+    : `Never put more than ${rules.maxAllocationPct}% in one stock. Diversify across 6–10 stocks for your profile.`;
   document.getElementById('allocDetails').innerHTML = `
     <div class="alloc-row"><span class="alloc-row-label">Your Capital</span><span class="alloc-row-val">GHS ${alloc.capital.toLocaleString()}</span></div>
     <div class="alloc-row"><span class="alloc-row-label">Risk Profile</span><span class="alloc-row-val">${rules.label}</span></div>
@@ -359,41 +376,49 @@ function renderAllocation(ticker) {
     <div class="alloc-row"><span class="alloc-row-label">At Price</span><span class="alloc-row-val">GHS ${alloc.pricePerShare.toFixed(2)}/share</span></div>`;
 }
 
-/* ── Macro Snapshot ──────────────────────────────────────────── */
+/* ── Macro Snapshot (real figures; see GSE.macro.meta for dates & sources) ── */
 function renderMacro() {
-  const m = GSE.macro;
+  const m = GSE.macro, meta = m.meta || {};
+  const asOf = k => meta[k] && meta[k].asOf ? meta[k].asOf : null;
+  const pts = v => v === null || v === undefined ? null : `${v > 0 ? '+' : ''}${v} pts`;
+  const pct = v => v === null || v === undefined ? null : `${v > 0 ? '+' : ''}${v}%`;
   const items = [
-    { label:'BoG Policy Rate', val:m.bogRate+'%', chg:m.bogChange, suffix:'%' },
-    { label:'USD / GHS', val:m.usdGhs.toFixed(2), chg:m.usdGhsChange, suffix:'%' },
-    { label:'Gold ($/oz)', val:'$'+m.goldOz.toLocaleString(), chg:m.goldChange, suffix:'%' },
-    { label:'Cocoa ($/ton)', val:'$'+m.cocoaTon.toLocaleString(), chg:m.cocoaChange, suffix:'%' },
+    { label:'BoG Policy Rate', val:GSE.fmtNum(m.bogRate, 2, '', '%'),   chg:m.bogChange,       chgStr:pts(m.bogChange),      asOf:asOf('policyRate'), invert:true },
+    { label:'Inflation (y/y)', val:GSE.fmtNum(m.inflation, 1, '', '%'), chg:m.inflationChange, chgStr:pts(m.inflationChange), asOf:asOf('inflation'), invert:true },
+    { label:'91-Day T-Bill',   val:GSE.fmtNum(m.tbill91, 2, '', '%'),   chg:null, chgStr:null, asOf:asOf('tbill91') },
+    { label:'USD / GHS',       val:GSE.fmtNum(m.usdGhs, 2),             chg:m.usdGhsChange,    chgStr:pct(m.usdGhsChange),   asOf:asOf('usdGhs'), invert:true },
+    { label:'Gold ($/oz)',     val:GSE.fmtNum(m.goldOz, 0, '$'),        chg:m.goldChange,      chgStr:pct(m.goldChange),     asOf:asOf('goldOz') },
+    { label:'Cocoa ($/ton)',   val:GSE.fmtNum(m.cocoaTon, 0, '$'),      chg:m.cocoaChange,     chgStr:pct(m.cocoaChange) ? pct(m.cocoaChange) + ' m/m' : null, asOf:asOf('cocoaTon') },
   ];
   document.getElementById('macroGrid').innerHTML = items.map(item => {
-    const chgColor = item.chg>0?'var(--emerald)':item.chg<0?'var(--red)':'var(--text-muted)';
-    const chgStr   = item.chg>0?`+${item.chg}${item.suffix}`:`${item.chg}${item.suffix}`;
+    // For rates, inflation and USD/GHS (cedi weakening) a rise is bad news, so colour it red
+    const good = item.chg === null || item.chg === 0 ? null : (item.invert ? item.chg < 0 : item.chg > 0);
+    const chgColor = good === null ? 'var(--text-muted)' : good ? 'var(--emerald)' : 'var(--red)';
     return `<div class="macro-card">
       <div class="macro-label">${item.label}</div>
       <div class="macro-val">${item.val}</div>
-      <div class="macro-chg" style="color:${chgColor}">${chgStr}</div>
+      <div class="macro-chg" style="color:${chgColor}">${item.chgStr || (item.asOf ? 'Latest' : 'Unavailable')}</div>
+      ${item.asOf ? `<div style="font-size:10px;color:var(--text-muted);margin-top:2px">as of ${escapeHtml(item.asOf)}</div>` : ''}
     </div>`;
   }).join('');
+  document.getElementById('macroSources').textContent = 'Sources: Bank of Ghana · currency-api · IMF via FRED';
 }
 
 /* ── Watchlist ───────────────────────────────────────────────── */
 let watchlist = [];
 
 function loadWatchlist() {
-  try { watchlist = JSON.parse(localStorage.getItem('gse_watchlist')) || ['MTNGH','GCB','BOPP']; }
-  catch { watchlist = ['MTNGH','GCB','BOPP']; }
+  watchlist = Watchlist.get();
   renderWatchlist();
 }
 
-function saveWatchlist() { localStorage.setItem('gse_watchlist', JSON.stringify(watchlist)); }
+function saveWatchlist() { Watchlist.save(watchlist); }
 
 function addToWatchlist() {
   const input = document.getElementById('watchlistInput');
   const ticker = input.value.trim().toUpperCase();
   const stock = GSE.getStock(ticker);
+  if (!ticker) return;
   if (!stock) { Toast.show('error','Ticker not found on GSE. Try: MTNGH, GCB, GOIL'); return; }
   if (watchlist.includes(ticker)) { Toast.show('warning','Already in watchlist'); input.value=''; return; }
   watchlist.push(ticker);
@@ -417,7 +442,7 @@ function renderWatchlist() {
     const chgStr   = s.change>0?`+${s.change}%`:`${s.change}%`;
     const badgeCls = s.signal==='BUY'?'badge-buy':s.signal==='SELL'?'badge-sell':'badge-hold';
     return `<div class="watchlist-row">
-      <div><div class="wl-ticker">${ticker}</div><div class="wl-name">${s.name.slice(0,22)}</div></div>
+      <div><div class="wl-ticker">${ticker}</div><div class="wl-name">${escapeHtml(s.name.slice(0,22))}</div></div>
       <div class="wl-right">
         <span class="badge ${badgeCls}" style="font-size:10px;padding:2px 8px">${s.signal}</span>
         <div style="font-family:var(--font-data);font-size:13px">GHS ${s.price.toFixed(2)}</div>

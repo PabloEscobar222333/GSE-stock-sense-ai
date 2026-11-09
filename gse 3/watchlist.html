@@ -27,7 +27,7 @@
   <main class="main-content">
     <div class="topbar">
       <div class="topbar-left"><h2>Watchlist</h2><div class="topbar-sub">Track your favourite GSE stocks</div></div>
-      <div class="topbar-right"><div class="usage-pill" data-usage-pill></div></div>
+      <div class="topbar-right"></div>
     </div>
     <div class="page-body">
       <div class="add-form">
@@ -39,15 +39,15 @@
   </main>
   <div id="mobileNavHolder"></div>
 </div>
+<script src="js/market-data.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script>
 if (!Auth.requireAuth()) throw new Error();
 initApp('watchlist.html');
-let watchlist = [];
-try { watchlist = JSON.parse(localStorage.getItem('gse_watchlist')) || ['MTNGH','GCB','BOPP']; } catch { watchlist=['MTNGH','GCB','BOPP']; }
+let watchlist = Watchlist.get();
 
-function save() { localStorage.setItem('gse_watchlist', JSON.stringify(watchlist)); }
+function save() { Watchlist.save(watchlist); }
 
 function addTicker() {
   const input = document.getElementById('tickerInput');
@@ -74,16 +74,16 @@ function renderGrid() {
     const bc = s.signal==='BUY'?'badge-buy':s.signal==='SELL'?'badge-sell':'badge-hold';
     return `<div class="wl-card">
       <div class="wl-card-top">
-        <div><div class="wl-card-ticker">${s.ticker}</div><div class="wl-card-name">${s.name}</div></div>
+        <div><div class="wl-card-ticker">${s.ticker}</div><div class="wl-card-name">${escapeHtml(s.name)}</div></div>
         <span class="badge ${bc}">${s.signal}</span>
       </div>
       <div class="wl-card-price">GHS ${s.price.toFixed(2)}</div>
       <div style="font-family:var(--font-data);font-size:13px;color:${chgColor}">${chgStr} today</div>
       <div class="wl-card-metrics">
         <div class="wl-metric"><div class="wl-metric-label">RSI</div><div style="font-family:var(--font-data)">${s.rsi}</div></div>
-        <div class="wl-metric"><div class="wl-metric-label">P/E</div><div style="font-family:var(--font-data)">${s.pe}x</div></div>
-        <div class="wl-metric"><div class="wl-metric-label">Yield</div><div style="font-family:var(--font-data)">${s.divYield}%</div></div>
-        <div class="wl-metric"><div class="wl-metric-label">Score</div><div style="font-family:var(--font-data)">${s.fundamentalScore}</div></div>
+        <div class="wl-metric"><div class="wl-metric-label">3M</div><div style="font-family:var(--font-data)">${GSE.fmtPct(s.ret3m)}</div></div>
+        <div class="wl-metric"><div class="wl-metric-label">1Y</div><div style="font-family:var(--font-data)">${GSE.fmtPct(s.ret1y)}</div></div>
+        <div class="wl-metric"><div class="wl-metric-label">Score</div><div style="font-family:var(--font-data)">${s.score}</div></div>
       </div>
       <div class="wl-card-actions">
         <a href="chat.html" class="btn btn-secondary btn-sm" onclick="sessionStorage.setItem('chatInit','Analyse ${s.ticker}')">Analyse</a>

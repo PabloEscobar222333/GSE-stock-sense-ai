@@ -110,7 +110,7 @@
 <div class="ob-progress-wrap">
   <div class="ob-progress-fill" id="progressFill" style="width:0%"></div>
 </div>
-<div class="ob-progress-label" id="progressLabel">Step 1 of 7</div>
+<div class="ob-progress-label" id="progressLabel">Welcome</div>
 
 <!-- Stage -->
 <div class="ob-stage" id="obStage">
@@ -248,25 +248,27 @@
 
 </div>
 
+<script src="js/market-data.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script>
 /* Auth guard */
-if (!Auth.isLoggedIn()) window.location.href = 'login.html';
+if (!Auth.isLoggedIn()) { window.location.href = 'login.html'; throw new Error('Not authenticated'); }
 
 const user = Auth.getSession() || {};
 document.getElementById('welcomeName').textContent = user.name ? user.name.split(' ')[0] : 'Investor';
 
 let currentStep = 0;
-const TOTAL_STEPS = 7;
+const TOTAL_STEPS = 6;   // question steps 1–6; 0 = welcome, 7 = loader, 8 = result
 const answers = {}; // step -> 'A'|'B'|'C'|'D'
 let selectedSectors = [];
 let capitalAmount = null;
 
 function updateProgress(step) {
-  const pct = step === 0 ? 0 : Math.round((step / TOTAL_STEPS) * 100);
+  const pct = Math.min(100, Math.round((step / TOTAL_STEPS) * 100));
   document.getElementById('progressFill').style.width = pct + '%';
-  document.getElementById('progressLabel').textContent = step === 0 ? 'Step 1 of 7' : `Step ${step} of ${TOTAL_STEPS}`;
+  document.getElementById('progressLabel').textContent =
+    step === 0 ? 'Welcome' : step > TOTAL_STEPS ? 'Complete' : `Step ${step} of ${TOTAL_STEPS}`;
 }
 
 function goToStep(n) {
@@ -314,16 +316,17 @@ function toggleSector(el, name) {
 /* Capital ranges for calculation */
 const capitalDefaults = { A:500, B:2500, C:12000, D:25000 };
 
+// 5 scored questions, A=1…D=4 → total ranges 5–20
 function scoreToProfile(total) {
-  if (total <= 12) return 'conservative';
-  if (total <= 22) return 'moderate';
+  if (total <= 10) return 'conservative';
+  if (total <= 15) return 'moderate';
   return 'aggressive';
 }
 
 function computeAndShowResult() {
   // Read exact capital
-  const capInput = document.getElementById('capitalAmount').value;
-  capitalAmount = capInput ? parseFloat(capInput) : capitalDefaults[answers[5]] || 2500;
+  const capInput = parseFloat(document.getElementById('capitalAmount').value);
+  capitalAmount = capInput > 0 ? capInput : (capitalDefaults[answers[5]] || 2500);
 
   // Score: A=1, B=2, C=3, D=4
   const scoreMap = {A:1,B:2,C:3,D:4};
@@ -362,7 +365,7 @@ function computeAndShowResult() {
     document.getElementById('resultDesc').textContent = rules.description +
       ` Based on your capital of GHS ${capitalAmount.toLocaleString()}, we'll calculate exact investment amounts for each recommendation.`;
     const picksEl = document.getElementById('resultPicks');
-    picksEl.innerHTML = rules.topPicks.map(t=>`<span class="ob-top-pick-tag">${t}</span>`).join('');
+    picksEl.innerHTML = GSE.topPicks(profile, 6).map(t=>`<span class="ob-top-pick-tag">${t}</span>`).join('');
     goToStep(8);
   }, 2800);
 }

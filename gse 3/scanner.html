@@ -85,10 +85,9 @@
     <div class="topbar">
       <div class="topbar-left">
         <h2>Radar Scanner</h2>
-        <div class="topbar-sub">Visual market scan — all 31 GSE stocks</div>
+        <div class="topbar-sub">Visual market scan — every GSE-listed stock</div>
       </div>
       <div class="topbar-right">
-        <div class="usage-pill" data-usage-pill>3 of 5 free</div>
       </div>
     </div>
 
@@ -103,7 +102,7 @@
             <div class="legend-item"><div class="legend-dot" style="background:var(--emerald)"></div>BUY Opportunity</div>
             <div class="legend-item"><div class="legend-dot" style="background:var(--red)"></div>SELL / Overbought</div>
             <div class="legend-item"><div class="legend-dot" style="background:var(--amber)"></div>Monitor / HOLD</div>
-            <div class="legend-item"><div class="legend-dot" style="background:rgba(255,255,255,0.3)"></div>Insufficient Data</div>
+            <div class="legend-item"><div class="legend-dot" style="background:rgba(255,255,255,0.3)"></div>Rarely Traded</div>
             <div class="legend-item" style="margin-top:2px;font-size:11px;color:var(--text-muted)">Dot size = relative market cap</div>
           </div>
 
@@ -185,6 +184,7 @@
   <div id="mobileNavHolder"></div>
 </div>
 
+<script src="js/market-data.js"></script>
 <script src="js/data.js"></script>
 <script src="js/app.js"></script>
 <script>
@@ -218,10 +218,10 @@ function updateRsiLabel() {
 /* Map each stock to radar polar coords */
 function stockToXY(s) {
   // radius: based on RSI (0=center/safe, 1=outer/risky)
-  // angle: based on fundamental score
+  // angle: based on signal score
   const rsiNorm = Math.max(0, Math.min(1, (s.rsi - 20) / 80)); // 20→0 = center, 100 = edge
   const radius  = rsiNorm * R * 0.88;
-  const angle   = (s.fundamentalScore / 100) * Math.PI * 2;
+  const angle   = (s.score / 100) * Math.PI * 2;
   const x = CX + Math.cos(angle) * radius;
   const y = CY + Math.sin(angle) * radius;
   return { x, y, radius };
@@ -232,10 +232,21 @@ function dotSize(s) {
 }
 
 function dotColor(s) {
-  if (s.signal === 'BUY' && s.rsi < filters.rsiMax) return '#00C896';
+  if (s.thinlyTraded) return 'rgba(255,255,255,0.3)';
+  if (s.signal === 'BUY') return '#00C896';
   if (s.signal === 'SELL') return '#FF4560';
-  if (s.signal === 'HOLD') return '#F5A623';
-  return 'rgba(255,255,255,0.3)';
+  return '#F5A623';
+}
+
+/* Nearest stock under the pointer (or null) */
+function stockAt(mx, my) {
+  let best = null, bestDist = Infinity;
+  filteredStocks().forEach(s => {
+    const { x, y } = stockToXY(s);
+    const dist = Math.hypot(mx - x, my - y);
+    if (dist < dotSize(s) + 8 && dist < bestDist) { best = s; bestDist = dist; }
+  });
+  return best;
 }
 
 /* Filter stocks */
@@ -328,10 +339,13 @@ function drawBlips(stocks) {
 
     // Glow ring when lit up
     if (glow > 0.05) {
+      ctx.save();
+      ctx.globalAlpha = glow * 0.4;
       ctx.beginPath();
       ctx.arc(x, y, size + 6 * glow, 0, Math.PI * 2);
-      ctx.fillStyle = color.replace(')', `,${glow * 0.4})`).replace('rgb', 'rgba');
+      ctx.fillStyle = color;
       ctx.fill();
+      ctx.restore();
     }
 
     ctx.beginPath();
@@ -389,7 +403,6 @@ requestAnimationFrame(animate);
 
 // Scan button
 function runScan() {
-  if (!Usage.checkAndConsume()) return;
   isScanning = true;
   lastScanStart = sweepAngle / (Math.PI * 2);
   document.getElementById('scanBtn').textContent = 'Scanning...';
@@ -405,7 +418,7 @@ function showResults(stocks) {
   sec.style.display = 'block';
   sec.scrollIntoView({ behavior:'smooth', block:'start' });
   document.getElementById('scanCountLabel').textContent = `${stocks.length} stocks found`;
-  const sorted = [...stocks].sort((a,b) => b.fundamentalScore - a.fundamentalScore);
+  const sorted = [...stocks].sort((a,b) => b.score - a.score);
   const tableEl = document.getElementById('scanResultsTable');
   tableEl.innerHTML = `<table class="data-table" style="background:transparent">
     <thead><tr>
@@ -418,7 +431,7 @@ function showResults(stocks) {
         <td><span class="badge ${bc}">${s.signal}</span></td>
         <td style="font-family:var(--font-data)">GHS ${s.price.toFixed(2)}</td>
         <td style="font-family:var(--font-data);color:${s.rsi>70?'var(--red)':s.rsi<35?'var(--emerald)':'inherit'}">${s.rsi}</td>
-        <td style="font-family:var(--font-data);color:${s.fundamentalScore>=70?'var(--emerald)':s.fundamentalScore>=50?'var(--amber)':'var(--red)'}">${s.fundamentalScore}</td>
+        <td style="font-family:var(--font-data);color:${s.score>=70?'var(--emerald)':s.score>=50?'var(--amber)':'var(--red)'}">${s.score}</td>
         <td style="font-size:13px;color:var(--text-secondary)">${s.sector}</td>
       </tr>`;
     }).join('')}</tbody>
@@ -431,21 +444,15 @@ canvas.addEventListener('mousemove', e => {
   const rect = canvas.getBoundingClientRect();
   const mx = (e.clientX - rect.left) * (SIZE / rect.width);
   const my = (e.clientY - rect.top) * (SIZE / rect.height);
-  const stocks = filteredStocks();
-  let found = null;
-  stocks.forEach(s => {
-    const { x, y } = stockToXY(s);
-    const dist = Math.hypot(mx - x, my - y);
-    if (dist < dotSize(s) + 8) found = s;
-  });
+  const found = stockAt(mx, my);
   if (found) {
     const bc = found.signal==='BUY'?'badge-buy':found.signal==='SELL'?'badge-sell':'badge-hold';
     tooltip.innerHTML = `
       <div class="tt-ticker">${found.ticker} <span class="badge ${bc}" style="font-size:10px">${found.signal}</span></div>
-      <div class="tt-name">${found.name}</div>
+      <div class="tt-name">${escapeHtml(found.name)}${found.thinlyTraded ? ' · rarely traded' : ''}</div>
       <div class="tt-row"><span class="tt-lbl">Price</span><span class="tt-val">GHS ${found.price.toFixed(2)}</span></div>
       <div class="tt-row"><span class="tt-lbl">RSI</span><span class="tt-val">${found.rsi}</span></div>
-      <div class="tt-row"><span class="tt-lbl">Score</span><span class="tt-val">${found.fundamentalScore}/100</span></div>
+      <div class="tt-row"><span class="tt-lbl">Score</span><span class="tt-val">${found.score}/100</span></div>
       <div class="tt-row"><span class="tt-lbl">Sector</span><span class="tt-val">${found.sector}</span></div>`;
     tooltip.style.display = 'block';
     tooltip.style.left = (e.clientX + 14) + 'px';
@@ -461,15 +468,13 @@ canvas.addEventListener('click', e => {
   const rect = canvas.getBoundingClientRect();
   const mx = (e.clientX - rect.left) * (SIZE / rect.width);
   const my = (e.clientY - rect.top) * (SIZE / rect.height);
-  filteredStocks().forEach(s => {
-    const { x, y } = stockToXY(s);
-    if (Math.hypot(mx - x, my - y) < dotSize(s) + 8) openReport(s.ticker);
-  });
+  // Only open one report per click, even where dots overlap
+  const s = stockAt(mx, my);
+  if (s) openReport(s.ticker);
 });
 
 /* Report panel */
 function openReport(ticker) {
-  if (!Usage.checkAndConsume()) return;
   const s = GSE.getStock(ticker);
   if (!s) return;
   const alloc = GSE.calcAllocation(ticker, profile.capitalAmount || 5000, profile.riskProfile || 'moderate');
@@ -477,7 +482,8 @@ function openReport(ticker) {
   document.getElementById('reportContent').innerHTML = `
     <div style="margin-bottom:20px">
       <div class="rp-ticker">${s.ticker}</div>
-      <div class="rp-name">${s.name}</div>
+      <div class="rp-name">${escapeHtml(s.name)}</div>
+      <div style="font-size:12px;color:var(--text-secondary);margin:-8px 0 12px">${escapeHtml(s.signalReason)}</div>
       <span class="badge ${bc}" style="font-size:14px;padding:6px 16px">${s.signal}</span>
     </div>
     <div class="rp-section">
@@ -485,14 +491,18 @@ function openReport(ticker) {
       <div class="rp-row"><span class="rp-lbl">Price</span><span class="rp-val">GHS ${s.price.toFixed(2)}</span></div>
       <div class="rp-row"><span class="rp-lbl">RSI</span><span class="rp-val" style="color:${s.rsi>70?'var(--red)':s.rsi<35?'var(--emerald)':'inherit'}">${s.rsi}</span></div>
       <div class="rp-row"><span class="rp-lbl">Change</span><span class="rp-val" style="color:${s.change>0?'var(--emerald)':'var(--red)'}">${s.change>0?'+':''}${s.change}%</span></div>
-      <div class="rp-row"><span class="rp-lbl">Volume</span><span class="rp-val">${s.volume.toLocaleString()}</span></div>
+      <div class="rp-row"><span class="rp-lbl">Volume Today</span><span class="rp-val">${s.volume != null ? s.volume.toLocaleString() : '—'}</span></div>
+      <div class="rp-row"><span class="rp-lbl">Last Close Date</span><span class="rp-val">${s.liveLoaded ? 'Live' : (s.asOf || '—')}</span></div>
     </div>
     <div class="rp-section">
-      <div class="rp-section-title">Fundamentals</div>
-      <div class="rp-row"><span class="rp-lbl">P/E Ratio</span><span class="rp-val">${s.pe}x</span></div>
-      <div class="rp-row"><span class="rp-lbl">Dividend Yield</span><span class="rp-val">${s.divYield}%</span></div>
-      <div class="rp-row"><span class="rp-lbl">Score</span><span class="rp-val">${s.fundamentalScore}/100</span></div>
-      <div class="rp-row"><span class="rp-lbl">Market Cap</span><span class="rp-val" style="text-transform:capitalize">${s.marketCap}</span></div>
+      <div class="rp-section-title">Trend &amp; Risk</div>
+      <div class="rp-row"><span class="rp-lbl">50-day Average</span><span class="rp-val">${s.sma50 ? 'GHS ' + s.sma50.toFixed(2) : '—'}</span></div>
+      <div class="rp-row"><span class="rp-lbl">200-day Average</span><span class="rp-val">${s.sma200 ? 'GHS ' + s.sma200.toFixed(2) : '—'}</span></div>
+      <div class="rp-row"><span class="rp-lbl">3M / 1Y Return</span><span class="rp-val">${GSE.fmtPct(s.ret3m)} / ${GSE.fmtPct(s.ret1y)}</span></div>
+      <div class="rp-row"><span class="rp-lbl">Volatility (ann.)</span><span class="rp-val">${s.volatility !== null ? s.volatility + '%' : '—'}</span></div>
+      <div class="rp-row"><span class="rp-lbl">52-week Range</span><span class="rp-val">GHS ${s.low52.toFixed(2)} – ${s.high52.toFixed(2)}</span></div>
+      <div class="rp-row"><span class="rp-lbl">Market Cap</span><span class="rp-val">${GSE.formatCap(s.marketCapValue)} (${s.marketCap})</span></div>
+      <div class="rp-row"><span class="rp-lbl">Signal Score</span><span class="rp-val">${s.score}/100</span></div>
     </div>
     ${alloc ? `<div class="rp-section">
       <div class="rp-section-title">Your Portfolio Allocation</div>
