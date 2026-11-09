@@ -4,10 +4,10 @@ Analyse the Ghana Stock Exchange: a front-end web app (plain HTML/CSS/JS, no bui
 > Educational project, not financial advice. See **Backtest** below before relying on the signals.
 
 ## Run it
-Serve the `gse 3/` folder over HTTP (some browser APIs don't work from `file://`):
+Serve the `gse3/` folder over HTTP (some browser APIs don't work from `file://`):
 
 ```bash
-cd "gse 3"
+cd gse3
 python3 -m http.server 8000   # then open http://localhost:8000
 ```
 
@@ -15,9 +15,9 @@ Accounts are stored in the browser (localStorage) for demo purposes only.
 
 ### Gemini key (for KOJO)
 ```bash
-cp "gse 3/js/config.example.js" "gse 3/js/config.js"   # then paste your key
+cp gse3/js/config.example.js gse3/js/config.js   # then paste your key
 ```
-`js/config.js` is git-ignored. The key is still visible to anyone who loads the site, so restrict it in Google Cloud Console to the Generative Language API and your site's referrers, or move the call to a backend. Without it, KOJO answers in offline mode.
+`js/config.js` is git-ignored and only for local development. On Vercel, set `GEMINI_API_KEY` in the project's Environment Variables instead; KOJO then calls Gemini through `api/gemini.js`, so the key never reaches the browser. Without either, KOJO answers in offline mode.
 
 ## Data
 All market data is real:
@@ -36,15 +36,15 @@ RSI, 50/200-day averages, returns, volatility, the 0–100 score and BUY/HOLD/SE
 
 ### Refreshing data
 ```bash
-node "gse 3/tools/refresh-market-data.js"            # daily: append today's closes + macro (seconds)
-node "gse 3/tools/refresh-market-data.js" --full     # rebuild full history (~40 min, 60s crawl delay)
-node "gse 3/tools/refresh-market-data.js" --fill-missing
+node gse3/tools/refresh-market-data.js            # daily: append today's closes + macro (seconds)
+node gse3/tools/refresh-market-data.js --full     # rebuild full history (~40 min, 60s crawl delay)
+node gse3/tools/refresh-market-data.js --fill-missing
 ```
 `tools/install-daily-refresh.sh` schedules the daily run on macOS (launchd). On macOS, a project inside Desktop/Documents needs Full Disk Access for `node`, or move it elsewhere.
 
 ## Backtest
 ```bash
-node "gse 3/tools/backtest.js"
+node gse3/tools/backtest.js
 ```
 Replays the app's exact signal rules on 2017-09 → 2026-11 (weekly rebalance, top 8 BUYs, next-day fills). Results (`tools/backtest-results.json`):
 
