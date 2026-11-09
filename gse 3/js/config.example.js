@@ -4,10 +4,10 @@
    Copy this file to js/config.js and add your Gemini API key.
    js/config.js is git-ignored so the key is never committed.
 
-   The key is still visible to anyone who loads the site, so in Google
-   Cloud Console restrict it to the Generative Language API and your
-   site's HTTP referrers — or move the Gemini call to a backend.
-   Without js/config.js, KOJO runs in offline mode.
+   This file is for local development only — a key here is visible to
+   anyone who loads the page. On Vercel, leave it out and set
+   GEMINI_API_KEY in the project's Environment Variables instead;
+   chat.html then calls Gemini through the api/gemini.js proxy.
    ================================================================ */
 window.GSE_CONFIG = {
   geminiApiKey: 'YOUR_GEMINI_API_KEY',
